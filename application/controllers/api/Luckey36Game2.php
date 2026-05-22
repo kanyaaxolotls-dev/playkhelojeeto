@@ -89,19 +89,22 @@ class Luckey36Game2 extends CI_Controller {
             'manual_set' => 0
         ]);
     }
-    public function cron()
+    /*public function cron()
 {
     $gameId    = $this->get_game_id();
     $period_id = $this->db_model->select('period_id', 'tbl_games', ['id' => $gameId]);
 
     // ✅ Prevent duplicate cron run
-    $already = $this->db_model->count_all('tbl_lucky36_results2', [
+     $this->db_model->count_all('tbl_lucky36_results2', [
         'period_id' => $period_id,
         'game_id'   => $gameId
     ]);
     if ($already > 0) {
-        return;
-    }
+
+    echo "Result already declared for Period ID : ".$period_id;
+
+    return;
+}
 
     // ✅ Start transaction
     $this->db->trans_start();
@@ -192,6 +195,129 @@ class Luckey36Game2 extends CI_Controller {
 
     // ✅ Complete transaction
     $this->db->trans_complete();
+}*/
+
+
+
+public function cron()
+{
+    $gameId    = $this->get_game_id();
+    $period_id = $this->db_model->select('period_id', 'tbl_games', ['id' => $gameId]);
+
+    // ✅ Prevent duplicate cron run
+    $already = $this->db_model->count_all('tbl_lucky36_results2', [
+        'period_id' => $period_id,
+        'game_id'   => $gameId
+    ]);
+
+    if ($already > 0) {
+
+        echo "Result already declared for Period ID : ".$period_id;
+
+        return;
+    }
+
+    // ✅ Start transaction
+    $this->db->trans_start();
+
+    $manual_set = $this->db_model->select('manual_set', 'tbl_games', ['id' => $gameId]);
+    $win_number = $this->db_model->select('win_number', 'tbl_games', ['id' => $gameId]);
+
+    // ✅ Decide winning number
+    if ($manual_set == 1) {
+
+        $selectedBetIndex = $win_number;
+
+    } else {
+
+        $betAmounts = [];
+
+        for ($i = 0; $i <= 35; $i++) {
+
+            $betAmounts[$i] = $this->db_model->sum('amount', 'tbl_lucky36_bet2', [
+                'period_id' => $period_id,
+                'game_id'   => $gameId,
+                'bet'       => $i,
+                'status'    => 'pending'
+            ]) + 0;
+        }
+
+        $minBetAmount  = min($betAmounts);
+        $minBetIndices = array_keys($betAmounts, $minBetAmount);
+
+        $selectedBetIndex = $minBetIndices[array_rand($minBetIndices)];
+    }
+
+    // ✅ PRINT RESULT
+    echo "Period ID : ".$period_id."<br>";
+    echo "Winning Number : ".$selectedBetIndex."<br>";
+
+    // ✅ Insert result
+    $this->db->insert('tbl_lucky36_results2', [
+        'period_id'  => $period_id,
+        'game_id'    => $gameId,
+        'win_number' => $selectedBetIndex
+    ]);
+
+    // ✅ Get all pending bets
+    $bets = $this->db
+        ->where('period_id', $period_id)
+        ->where('game_id', $gameId)
+        ->where('status', 'pending')
+        ->get('tbl_lucky36_bet2')
+        ->result();
+
+    foreach ($bets as $bet) {
+
+        $win_amount = $this->calculate_payout(
+            $bet->bet_type,
+            $bet->bet,
+            $selectedBetIndex,
+            $bet->amount
+        );
+
+        if ($win_amount > 0) {
+
+            // ✅ SAFE wallet update
+            $this->db->set('winning_wallet', 'winning_wallet + ' . $win_amount, FALSE);
+            $this->db->where('id', $bet->userid);
+            $this->db->update('tbl_users');
+
+            // ✅ Transaction log
+            $this->db->insert('tbl_transactions', [
+                'userid'      => $bet->userid,
+                'amount'      => $win_amount,
+                'type'        => 'game_win',
+                'description' => 'Lucky 36 Game Win',
+            ]);
+
+            $status = 'won';
+
+        } else {
+
+            $status = 'lost';
+        }
+
+        // ✅ Update bet status
+        $this->db->where('id', $bet->id);
+        $this->db->update('tbl_lucky36_bet2', [
+            'status' => $status
+        ]);
+    }
+
+    // ✅ Update game for next round
+    $this->db->where('id', $gameId);
+    $this->db->update('tbl_games', [
+        'period_id'  => $period_id + 1,
+        'win_number' => $selectedBetIndex,
+        'manual_set' => 0
+    ]);
+
+    // ✅ Complete transaction
+    $this->db->trans_complete();
+
+    // ✅ Success Message
+    echo "<br>Result Declared Successfully";
 }
     private function calculate_payout($bet_type, $bet_value, $winning_number, $amount)
 {

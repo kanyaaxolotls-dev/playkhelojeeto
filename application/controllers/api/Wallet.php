@@ -2,6 +2,11 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Wallet extends CI_Controller {
+     public function __construct() {
+        parent::__construct();
+        $this->load->model('db_model');
+        $this->load->model('Hierarchy_model');
+    }
     
 	public function index()
 	{
@@ -256,5 +261,464 @@ class Wallet extends CI_Controller {
 		}
 		$this->output->set_content_type('application/json')->set_output(json_encode($response));
 	}
+	
+	 // =============================================
+    // NEW HIERARCHY WALLET TRANSFER APIs
+    // =============================================
+
+    /**
+     * 1. ADMIN TO DISTRIBUTOR TRANSFER
+     * POST /api/wallet/admin_to_distributor
+     * Requires: Admin Login Session
+     */
+    public function admin_to_distributor() {
+        $this->output->set_content_type('application/json');
+        
+        // Check if admin is logged in
+        if (!$this->session->admin_id) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Unauthorized. Admin login required.',
+                'code' => 401
+            ]);
+            return;
+        }
+        
+        $distributor_id = $this->input->post('distributor_id');
+        $amount = floatval($this->input->post('amount'));
+        $remarks = $this->input->post('remarks') ?? 'Admin to Distributor transfer';
+        
+        if(!$distributor_id || $amount <= 0) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Distributor ID and valid amount are required',
+                'code' => 400
+            ]);
+            return;
+        }
+        
+        // Get admin wallet
+        $admin = $this->db->get_where('tbl_admin', ['id' => $this->session->admin_id])->row();
+        if(!$admin) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Admin not found',
+                'code' => 404
+            ]);
+            return;
+        }
+        
+        $admin_wallet = floatval($admin->wallet ?? 0);
+        if($admin_wallet < $amount) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Insufficient admin wallet balance. Available: ₹' . number_format($admin_wallet, 2),
+                'code' => 400
+            ]);
+            return;
+        }
+        
+        // Get distributor
+        $distributor = $this->db->get_where('tbl_distributors', ['id' => $distributor_id, 'status' => 1])->row();
+        if(!$distributor) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Distributor not found or inactive',
+                'code' => 404
+            ]);
+            return;
+        }
+        
+        $this->db->trans_start();
+        
+        // Deduct from admin
+        $new_admin_wallet = $admin_wallet - $amount;
+        $this->db->where('id', $this->session->admin_id);
+        $this->db->update('tbl_admin', ['wallet' => $new_admin_wallet]);
+        
+        // Add to distributor
+        $new_distributor_wallet = floatval($distributor->wallet) + $amount;
+        $this->db->where('id', $distributor_id);
+        $this->db->update('tbl_distributors', ['wallet' => $new_distributor_wallet]);
+        
+        // Record transaction
+        $this->db->insert('tbl_wallet_transfers', [
+            'from_type' => 'admin',
+            'from_id' => $this->session->admin_id,
+            'to_type' => 'distributor',
+            'to_id' => $distributor_id,
+            'amount' => $amount,
+            'transfer_type' => 'wallet_transfer',
+            'remarks' => $remarks,
+            'status' => 'completed',
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+        
+        $this->db->trans_complete();
+        
+        if($this->db->trans_status() === FALSE) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Transaction failed. Please try again.',
+                'code' => 500
+            ]);
+            return;
+        }
+        
+        echo json_encode([
+            'success' => true,
+            'message' => 'Amount transferred successfully from Admin to Distributor',
+            'data' => [
+                'from' => 'Admin',
+                'to' => $distributor->name,
+                'amount' => $amount,
+                'admin_wallet_balance' => $new_admin_wallet,
+                'distributor_wallet_balance' => $new_distributor_wallet
+            ]
+        ]);
+    }
+
+    /**
+     * 2. DISTRIBUTOR TO DEALER TRANSFER
+     * POST /api/wallet/distributor_to_dealer
+     * Requires: Distributor Login Session OR API Token
+     */
+    public function distributor_to_dealer() {
+        $this->output->set_content_type('application/json');
+        
+        // Get distributor_id from session or API token
+        $distributor_id = $this->session->userdata('distributor_id');
+        if(!$distributor_id) {
+            $distributor_id = $this->validate_distributor_token();
+        }
+        
+        if(!$distributor_id) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Unauthorized. Distributor login required.',
+                'code' => 401
+            ]);
+            return;
+        }
+        
+        $dealer_id = $this->input->post('dealer_id');
+        $amount = floatval($this->input->post('amount'));
+        $remarks = $this->input->post('remarks') ?? 'Distributor to Dealer transfer';
+        
+        if(!$dealer_id || $amount <= 0) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Dealer ID and valid amount are required',
+                'code' => 400
+            ]);
+            return;
+        }
+        
+        // Get distributor wallet
+        $distributor = $this->db->get_where('tbl_distributors', ['id' => $distributor_id, 'status' => 1])->row();
+        if(!$distributor) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Distributor not found',
+                'code' => 404
+            ]);
+            return;
+        }
+        
+        $distributor_wallet = floatval($distributor->wallet ?? 0);
+        if($distributor_wallet < $amount) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Insufficient distributor wallet balance. Available: ₹' . number_format($distributor_wallet, 2),
+                'code' => 400
+            ]);
+            return;
+        }
+        
+        // Verify dealer belongs to this distributor
+        $dealer = $this->db->get_where('tbl_dealers', [
+            'id' => $dealer_id, 
+            'distributor_id' => $distributor_id,
+            'status' => 1
+        ])->row();
+        
+        if(!$dealer) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Dealer not found or not under your distribution',
+                'code' => 404
+            ]);
+            return;
+        }
+        
+        $this->db->trans_start();
+        
+        // Deduct from distributor
+        $new_distributor_wallet = $distributor_wallet - $amount;
+        $this->db->where('id', $distributor_id);
+        $this->db->update('tbl_distributors', ['wallet' => $new_distributor_wallet]);
+        
+        // Add to dealer
+        $new_dealer_wallet = floatval($dealer->wallet) + $amount;
+        $this->db->where('id', $dealer_id);
+        $this->db->update('tbl_dealers', ['wallet' => $new_dealer_wallet]);
+        
+        // Record transaction
+        $this->db->insert('tbl_wallet_transfers', [
+            'from_type' => 'distributor',
+            'from_id' => $distributor_id,
+            'to_type' => 'dealer',
+            'to_id' => $dealer_id,
+            'amount' => $amount,
+            'transfer_type' => 'wallet_transfer',
+            'remarks' => $remarks,
+            'status' => 'completed',
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+        
+        $this->db->trans_complete();
+        
+        echo json_encode([
+            'success' => true,
+            'message' => 'Amount transferred successfully to dealer',
+            'data' => [
+                'from' => $distributor->name,
+                'to' => $dealer->name,
+                'amount' => $amount,
+                'distributor_wallet_balance' => $new_distributor_wallet,
+                'dealer_wallet_balance' => $new_dealer_wallet
+            ]
+        ]);
+    }
+
+    /**
+     * 3. DEALER TO USER TRANSFER
+     * POST /api/wallet/dealer_to_user
+     * Requires: Dealer Login Session OR API Token
+     */
+    public function dealer_to_user() {
+        $this->output->set_content_type('application/json');
+        
+        // Get dealer_id from session or API token
+        $dealer_id = $this->session->userdata('dealer_id');
+        if(!$dealer_id) {
+            $dealer_id = $this->validate_dealer_token();
+        }
+        
+        if(!$dealer_id) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Unauthorized. Dealer login required.',
+                'code' => 401
+            ]);
+            return;
+        }
+        
+        $user_id = $this->input->post('user_id');
+        $amount = floatval($this->input->post('amount'));
+        $remarks = $this->input->post('remarks') ?? 'Dealer to User transfer';
+        
+        if(!$user_id || $amount <= 0) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'User ID and valid amount are required',
+                'code' => 400
+            ]);
+            return;
+        }
+        
+        // Get dealer wallet
+        $dealer = $this->db->get_where('tbl_dealers', ['id' => $dealer_id, 'status' => 1])->row();
+        if(!$dealer) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Dealer not found',
+                'code' => 404
+            ]);
+            return;
+        }
+        
+        $dealer_wallet = floatval($dealer->wallet ?? 0);
+        if($dealer_wallet < $amount) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Insufficient dealer wallet balance. Available: ₹' . number_format($dealer_wallet, 2),
+                'code' => 400
+            ]);
+            return;
+        }
+        
+        // Verify user belongs to this dealer
+        $user = $this->db->get_where('tbl_users', [
+            'id' => $user_id, 
+            'dealer_id' => $dealer_id,
+            'status' => 1
+        ])->row();
+        
+        if(!$user) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'User not found or not under your dealership',
+                'code' => 404
+            ]);
+            return;
+        }
+        
+        $this->db->trans_start();
+        
+        // Deduct from dealer
+        $new_dealer_wallet = $dealer_wallet - $amount;
+        $this->db->where('id', $dealer_id);
+        $this->db->update('tbl_dealers', ['wallet' => $new_dealer_wallet]);
+        
+        // Add to user wallet
+        $new_user_wallet = floatval($user->wallet) + $amount;
+        $this->db->where('id', $user_id);
+        $this->db->update('tbl_users', ['wallet' => $new_user_wallet]);
+        
+        // Record transaction
+        $this->db->insert('tbl_transactions', [
+            'userid' => $user_id,
+            'amount' => $amount,
+            'type' => 'wallet_transfer',
+            'status' => 'credit',
+            'remarks' => $remarks,
+            'date' => date('Y-m-d H:i:s')
+        ]);
+        
+        // Record wallet transfer
+        $this->db->insert('tbl_wallet_transfers', [
+            'from_type' => 'dealer',
+            'from_id' => $dealer_id,
+            'to_type' => 'user',
+            'to_id' => $user_id,
+            'amount' => $amount,
+            'transfer_type' => 'wallet_transfer',
+            'remarks' => $remarks,
+            'status' => 'completed',
+            'created_at' => date('Y-m-d H:i:s')
+        ]);
+        
+        $this->db->trans_complete();
+        
+        echo json_encode([
+            'success' => true,
+            'message' => 'Amount transferred successfully to user',
+            'data' => [
+                'from' => $dealer->name,
+                'to' => $user->name,
+                'amount' => $amount,
+                'dealer_wallet_balance' => $new_dealer_wallet,
+                'user_wallet_balance' => $new_user_wallet
+            ]
+        ]);
+    }
+
+    /**
+     * 4. GET DISTRIBUTOR WALLET BALANCE
+     * GET /api/wallet/distributor_balance
+     */
+    public function distributor_balance() {
+        $this->output->set_content_type('application/json');
+        
+        $distributor_id = $this->session->userdata('distributor_id');
+        if(!$distributor_id) {
+            $distributor_id = $this->validate_distributor_token();
+        }
+        
+        if(!$distributor_id) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'code' => 401
+            ]);
+            return;
+        }
+        
+        $distributor = $this->db->get_where('tbl_distributors', ['id' => $distributor_id])->row();
+        
+        echo json_encode([
+            'success' => true,
+            'data' => [
+                'distributor_id' => $distributor->id,
+                'name' => $distributor->name,
+                'wallet_balance' => floatval($distributor->wallet),
+                'total_commission' => floatval($distributor->total_commission ?? 0)
+            ]
+        ]);
+    }
+
+    /**
+     * 5. GET DEALER WALLET BALANCE
+     * GET /api/wallet/dealer_balance
+     */
+    public function dealer_balance() {
+        $this->output->set_content_type('application/json');
+        
+        $dealer_id = $this->session->userdata('dealer_id');
+        if(!$dealer_id) {
+            $dealer_id = $this->validate_dealer_token();
+        }
+        
+        if(!$dealer_id) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Unauthorized',
+                'code' => 401
+            ]);
+            return;
+        }
+        
+        $dealer = $this->db->get_where('tbl_dealers', ['id' => $dealer_id])->row();
+        
+        echo json_encode([
+            'success' => true,
+            'data' => [
+                'dealer_id' => $dealer->id,
+                'name' => $dealer->name,
+                'wallet_balance' => floatval($dealer->wallet),
+                'total_commission' => floatval($dealer->total_commission ?? 0)
+            ]
+        ]);
+    }
+
+    // =============================================
+    // HELPER METHODS
+    // =============================================
+    
+    private function validate_distributor_token() {
+        $headers = $this->input->get_request_header('Authorization', TRUE);
+        $token = str_replace('Bearer ', '', $headers);
+        
+        if(empty($token)) {
+            return null;
+        }
+        
+        // Verify token from distributor_sessions table
+        $session = $this->db->get_where('tbl_distributor_sessions', [
+            'token' => $token,
+            'expires_at >' => date('Y-m-d H:i:s')
+        ])->row();
+        
+        return $session ? $session->distributor_id : null;
+    }
+    
+    private function validate_dealer_token() {
+        $headers = $this->input->get_request_header('Authorization', TRUE);
+        $token = str_replace('Bearer ', '', $headers);
+        
+        if(empty($token)) {
+            return null;
+        }
+        
+        // Verify token from dealer_sessions table
+        $session = $this->db->get_where('tbl_dealer_sessions', [
+            'token' => $token,
+            'expires_at >' => date('Y-m-d H:i:s')
+        ])->row();
+        
+        return $session ? $session->dealer_id : null;
+    }
+
 
 }

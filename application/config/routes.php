@@ -52,6 +52,9 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 $route['default_controller']   = 'Home';
 $route['404_override']         = 'site/_404';
 $route['translate_uri_dashes'] = TRUE;
-
-
+// Distributor Panel Routes
+$route['distributor-login'] = 'Distributor_login/index';
+$route['distributor/login'] = 'Distributor_login/index';
+$route['distributor/dashboard/users'] = 'distributor/Dashboard/users';
+$route['distributor/dashboard/users/(:any)'] = 'distributor/Dashboard/users/$1';
 

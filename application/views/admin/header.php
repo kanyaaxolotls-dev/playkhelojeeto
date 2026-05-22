@@ -123,6 +123,31 @@
                       </ul>
                   </li>
                   <?php } } ?>
+                   <!-- ===== MANUALLY ADDED DEALERS & DISTRIBUTORS ===== -->
+      <li class="sub-menu">
+          <a href="javascript:;">
+              <i class="fa fa-building"></i>
+              <span>Distributors</span>
+          </a>
+          <ul class="sub">
+              <li><a href="<?= base_url('backend/distributors') ?>">All Distributors</a></li>
+              <li><a href="<?= base_url('backend/distributors/create') ?>">Add Distributor</a></li>
+              <li><a href="<?= base_url('backend/distributors/commission') ?>">Commission Report</a></li>
+          </ul>
+      </li>
+      
+      <li class="sub-menu">
+          <a href="javascript:;">
+              <i class="fa fa-users"></i>
+              <span>Dealers</span>
+          </a>
+          <ul class="sub">
+              <li><a href="<?= base_url('backend/dealers') ?>">All Dealers</a></li>
+              <li><a href="<?= base_url('backend/dealers/create') ?>">Add Dealer</a></li>
+              <li><a href="<?= base_url('backend/dealers/commission') ?>">Commission Report</a></li>
+          </ul>
+      </li>
+      <!-- ===== END OF MANUALLY ADDED MENUS ===== -->
                   <li>
                     <a class="text-danger" href="<?= base_url('backend/admin/logout') ?>">
                         <i class="fa fa-key"></i>
