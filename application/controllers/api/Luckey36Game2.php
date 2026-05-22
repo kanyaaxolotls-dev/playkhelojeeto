@@ -3,203 +3,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Luckey36Game2 extends CI_Controller {
 
-    public function cron_old()
-    {
-        $gameId     = $this->get_game_id();
-        $period_id  = $this->db_model->select('period_id', 'tbl_games', array('id' => $gameId));
-        $manual_set = $this->db_model->select('manual_set', 'tbl_games', array('id' => $gameId));
-        $win_number = $this->db_model->select('win_number', 'tbl_games', array('id' => $gameId));
-        
-        if($manual_set == 1){
-            $selectedBetIndex = $win_number;
-        } else{
-            $betAmounts = [];
-            for ($i = 0; $i <= 35; $i++) {
-                $betAmounts[$i] = $this->db_model->sum('amount', 'tbl_lucky36_bet2', [
-                    'period_id' => $period_id,
-                    'game_id'   => $gameId,
-                    'bet'       => $i,
-                    'status'    => 'pending'
-                ]) + 0;
-            }
-            $minBetAmount  = min($betAmounts);
-            $minBetIndices = [];
-            foreach ($betAmounts as $index => $amount) {
-                if ($amount == $minBetAmount) {
-                    $minBetIndices[] = $index;
-                }
-            }
-            
-            if (count($minBetIndices) > 1) {
-                $randomIndex = array_rand($minBetIndices);
-                $selectedBetIndex = $minBetIndices[$randomIndex];
-            } else {
-                $selectedBetIndex = $minBetIndices[0];
-            }
-        }
-        echo $period_id.'<br>'.$selectedBetIndex;
-        
-        $this->db->insert('tbl_lucky36_results2', [
-            'period_id' => $period_id,
-            'game_id'   => $gameId,
-            'win_number' => $selectedBetIndex
-        ]);
-        
-        
-        
-        
-        $this->db->select('*');
-        $this->db->from('tbl_lucky36_bet2');
-        $this->db->where('period_id', $period_id);
-        $this->db->where('game_id', $gameId);
-        $this->db->where('status', 'pending');
-        $bets = $this->db->get()->result();
-        
-        foreach ($bets as $bet) {
-            $win_amount = $this->calculate_payout($bet->bet_type, $bet->bet, $selectedBetIndex, $bet->amount);
-            
-            if ($win_amount > 0) {
-                $wallet = $this->db_model->select('winning_wallet', 'tbl_users', array('id' => $bet->userid));
-                $this->db->where('id', $bet->userid);
-                $this->db->update('tbl_users', [
-                    'winning_wallet' => $wallet + $win_amount
-                ]);
-                
-                $this->db->insert('tbl_transactions', [
-                    'userid'      => $bet->userid,
-                    'amount'      => $win_amount,
-                    'type'        => 'game_win',
-                    'description' => 'Lucky 36 Game Win',
-                ]);
-                $status = 'won';
-            } else {
-                $status = 'lost';
-            }
-            
-            $this->db->where('id', $bet->id);
-            $this->db->update('tbl_lucky36_bet2', [
-                'status' => $status,
-            ]);
-        }
-        
-        $this->db->where('id', $gameId);
-        $this->db->update('tbl_games', [
-            'period_id'  => $period_id + 1,
-            'win_number' => $selectedBetIndex,
-            'manual_set' => 0
-        ]);
-    }
-    /*public function cron()
-{
-    $gameId    = $this->get_game_id();
-    $period_id = $this->db_model->select('period_id', 'tbl_games', ['id' => $gameId]);
-
-    // ✅ Prevent duplicate cron run
-     $this->db_model->count_all('tbl_lucky36_results2', [
-        'period_id' => $period_id,
-        'game_id'   => $gameId
-    ]);
-    if ($already > 0) {
-
-    echo "Result already declared for Period ID : ".$period_id;
-
-    return;
-}
-
-    // ✅ Start transaction
-    $this->db->trans_start();
-
-    $manual_set = $this->db_model->select('manual_set', 'tbl_games', ['id' => $gameId]);
-    $win_number = $this->db_model->select('win_number', 'tbl_games', ['id' => $gameId]);
-
-    // ✅ Decide winning number
-    if ($manual_set == 1) {
-        $selectedBetIndex = $win_number;
-    } else {
-        $betAmounts = [];
-
-        for ($i = 0; $i <= 35; $i++) {
-            $betAmounts[$i] = $this->db_model->sum('amount', 'tbl_lucky36_bet2', [
-                'period_id' => $period_id,
-                'game_id'   => $gameId,
-                'bet'       => $i,
-                'status'    => 'pending'
-            ]) + 0;
-        }
-
-        $minBetAmount  = min($betAmounts);
-        $minBetIndices = array_keys($betAmounts, $minBetAmount);
-
-        $selectedBetIndex = $minBetIndices[array_rand($minBetIndices)];
-    }
-
-    // ✅ Insert result
-    $this->db->insert('tbl_lucky36_results2', [
-        'period_id'  => $period_id,
-        'game_id'    => $gameId,
-        'win_number' => $selectedBetIndex
-    ]);
-
-    // ✅ Get all pending bets
-    $bets = $this->db
-        ->where('period_id', $period_id)
-        ->where('game_id', $gameId)
-        ->where('status', 'pending')
-        ->get('tbl_lucky36_bet2')
-        ->result();
-
-    foreach ($bets as $bet) {
-
-        $win_amount = $this->calculate_payout(
-            $bet->bet_type,
-            $bet->bet,
-            $selectedBetIndex,
-            $bet->amount
-        );
-
-        if ($win_amount > 0) {
-
-            // ✅ SAFE wallet update (atomic)
-            $this->db->set('winning_wallet', 'winning_wallet + ' . $win_amount, FALSE);
-            $this->db->where('id', $bet->userid);
-            $this->db->update('tbl_users');
-
-            // transaction log
-            $this->db->insert('tbl_transactions', [
-                'userid'      => $bet->userid,
-                'amount'      => $win_amount,
-                'type'        => 'game_win',
-                'description' => 'Lucky 36 Game Win',
-            ]);
-
-            $status = 'won';
-
-        } else {
-            $status = 'lost';
-        }
-
-        // update bet status
-        $this->db->where('id', $bet->id);
-        $this->db->update('tbl_lucky36_bet2', [
-            'status' => $status
-        ]);
-    }
-
-    // ✅ Update game for next round
-    $this->db->where('id', $gameId);
-    $this->db->update('tbl_games', [
-        'period_id'  => $period_id + 1,
-        'win_number' => $selectedBetIndex,
-        'manual_set' => 0
-    ]);
-
-    // ✅ Complete transaction
-    $this->db->trans_complete();
-}*/
-
-
-
-public function cron()
+public function cron2205()
 {
     $gameId    = $this->get_game_id();
     $period_id = $this->db_model->select('period_id', 'tbl_games', ['id' => $gameId]);
@@ -319,7 +123,278 @@ public function cron()
     // ✅ Success Message
     echo "<br>Result Declared Successfully";
 }
-    private function calculate_payout($bet_type, $bet_value, $winning_number, $amount)
+public function cron()
+    {
+        $this->db->trans_start();
+
+        $gameId = $this->get_game_id();
+        $game = $this->db->get_where('tbl_games', ['id' => $gameId])->row();
+
+        if (!$game) {
+            return;
+        }
+
+        $period_id = $game->period_id;
+        $manual_set = $game->manual_set;
+        $win_number = $game->win_number;
+
+        // ✅ Prevent duplicate cron run
+        $already = $this->db->get_where('tbl_lucky36_results2', [
+            'period_id' => $period_id,
+            'game_id'   => $gameId
+        ])->row();
+
+        if ($already) {
+            $this->db->trans_complete();
+            echo "Result already declared for Period ID: " . $period_id;
+            return;
+        }
+
+        // =========================
+        // RESULT SELECTION LOGIC (Same as Luckey36)
+        // =========================
+        if ($manual_set == 1) {
+            $selectedBetIndex = $win_number;
+        } else {
+            $bets = $this->db->get_where('tbl_lucky36_bet2', [
+                'period_id' => $period_id,
+                'game_id'   => $gameId,
+                'status'    => 'pending'
+            ])->result();
+
+            if (empty($bets)) {
+                $selectedBetIndex = rand(0, 35);
+            } else {
+                $totalEffectiveAmount = 0;
+
+                foreach ($bets as $bet) {
+                    $amount = floatval($bet->amount);
+                    $dealerCommission = floatval($bet->dealer_commission ?? 0);
+                    $distributorCommission = floatval($bet->distributor_commission ?? 0);
+                    $effectiveBetAmount = $amount - $dealerCommission - $distributorCommission;
+                    
+                    $totalEffectiveAmount += $effectiveBetAmount;
+                    $bet->exposure_amount = $amount; 
+                    $bet->effective_amount = $effectiveBetAmount;
+                }
+
+                $adminCommission = round($totalEffectiveAmount * 0.20, 2);
+                $remainingProfit = $totalEffectiveAmount - $adminCommission;
+
+                if ($remainingProfit < 0) {
+                    $remainingProfit = 0;
+                }
+
+                $exposures = array_fill(0, 36, 0.0);
+
+                foreach ($bets as $bet) {
+                    for ($number = 0; $number <= 35; $number++) {
+                        $exposures[$number] += $this->calculate_payout(
+                            $bet->bet_type,
+                            $bet->bet,
+                            $number,
+                            $bet->exposure_amount
+                        );
+                    }
+                }
+
+                $safestNumbers = [];
+                $maxEligiblePayout = null;
+
+                foreach ($exposures as $number => $payout) {
+                    if ($payout <= $remainingProfit) {
+                        if ($maxEligiblePayout === null || $payout > $maxEligiblePayout) {
+                            $maxEligiblePayout = $payout;
+                            $safestNumbers = [$number];
+                        } elseif ($payout === $maxEligiblePayout) {
+                            $safestNumbers[] = $number;
+                        }
+                    }
+                }
+
+                /*if (!empty($safestNumbers)) {
+                    $selectedBetIndex = $safestNumbers[array_rand($safestNumbers)];
+                } else {
+                    $closestNumbers = [];
+                    $closestDistance = null;
+
+                    foreach ($exposures as $number => $payout) {
+                        $distance = abs($payout - $remainingProfit);
+
+                        if ($closestDistance === null || $distance < $closestDistance) {
+                            $closestDistance = $distance;
+                            $closestNumbers = [$number];
+                        } elseif ($distance === $closestDistance) {
+                            $closestNumbers[] = $number;
+                        }
+                    }
+
+                    $selectedBetIndex = $closestNumbers[array_rand($closestNumbers)];
+                }*/
+                
+                                if (!empty($safestNumbers)) {
+                    $maxExposure = -1;
+                    $selectedBetIndex = $safestNumbers[0];
+                    foreach ($safestNumbers as $number) {
+                        if ($exposures[$number] > $maxExposure) {
+                            $maxExposure = $exposures[$number];
+                            $selectedBetIndex = $number;
+                        }
+                    }
+                } else {
+                    $closestNumbers = [];
+                    $closestDistance = null;
+
+                    foreach ($exposures as $number => $payout) {
+                        $distance = abs($payout - $remainingProfit);
+
+                        if ($closestDistance === null || $distance < $closestDistance) {
+                            $closestDistance = $distance;
+                            $closestNumbers = [$number];
+                        } elseif ($distance === $closestDistance) {
+                            $closestNumbers[] = $number;
+                        }
+                    }
+
+                    $minExposure = PHP_INT_MAX;
+                    $selectedBetIndex = $closestNumbers[0];
+                    foreach ($closestNumbers as $number) {
+                        if ($exposures[$number] < $minExposure) {
+                            $minExposure = $exposures[$number];
+                            $selectedBetIndex = $number;
+                        }
+                    }
+                }
+            }
+        }
+
+        // ✅ PRINT RESULT
+        echo "Period ID: " . $period_id . "<br>";
+        echo "Winning Number: " . $selectedBetIndex . "<br>";
+
+        // ✅ Insert result
+        $this->db->insert('tbl_lucky36_results2', [
+            'period_id'  => $period_id,
+            'game_id'    => $gameId,
+            'win_number' => $selectedBetIndex
+        ]);
+
+        // ✅ Get all pending bets
+        $bets = $this->db
+            ->where('period_id', $period_id)
+            ->where('game_id', $gameId)
+            ->where('status', 'pending')
+            ->get('tbl_lucky36_bet2')
+            ->result();
+
+        // =========================
+        // PROCESS BETS (Win/Loss)
+        // =========================
+        foreach ($bets as $bet) {
+            $win_amount = $this->calculate_payout(
+                $bet->bet_type,
+                $bet->bet,
+                $selectedBetIndex,
+                $bet->amount
+            );
+
+            if ($win_amount > 0) {
+                // Update user winning wallet
+                $this->db->set('winning_wallet', 'winning_wallet + ' . $win_amount, FALSE);
+                $this->db->where('id', $bet->userid);
+                $this->db->update('tbl_users');
+
+                // Transaction log
+                $this->db->insert('tbl_transactions', [
+                    'userid' => $bet->userid,
+                    'amount' => $win_amount,
+                    'type'   => 'game_win',
+                    'status' => 'credit'
+                ]);
+                
+                // Update win_amount in bet table
+                $this->db->where('id', $bet->id);
+                $this->db->update('tbl_lucky36_bet2', ['win_amount' => $win_amount]);
+                
+                $status = 'won';
+            } else {
+                $status = 'lost';
+            }
+
+            // Update bet status
+            $this->db->where('id', $bet->id);
+            $this->db->update('tbl_lucky36_bet2', [
+                'status' => $status,
+                'result_number' => $selectedBetIndex
+            ]);
+        }
+
+        // =============================================
+        // CREDIT COMMISSIONS TO DEALER & DISTRIBUTOR
+        // =============================================
+        foreach ($bets as $bet) {
+            $user = $this->db->get_where('tbl_users', ['id' => $bet->userid])->row();
+            
+            // Credit Dealer Commission
+            if($user && $user->dealer_id) {
+                $dealer_commission = floatval($bet->dealer_commission ?? 0);
+                if($dealer_commission > 0) {
+                    // Credit to dealer wallet
+                    $this->db->set('wallet', 'wallet + ' . $dealer_commission, FALSE);
+                    $this->db->where('id', $user->dealer_id);
+                    $this->db->update('tbl_dealers');
+                    
+                    // Update commission history
+                    $this->db->where('source_user_id', $bet->userid);
+                    $this->db->where('period_id', $period_id);
+                    $this->db->where('commission_type', 'dealer');
+                    $this->db->update('tbl_commission_history', [
+                        'dealer_commission_credited' => $dealer_commission,
+                        'status' => 'completed',
+                        'updated_at' => date('Y-m-d H:i:s')
+                    ]);
+                }
+            }
+            
+            // Credit Distributor Commission
+            if($user && $user->distributor_id) {
+                $distributor_commission = floatval($bet->distributor_commission ?? 0);
+                if($distributor_commission > 0) {
+                    // Credit to distributor wallet
+                    $this->db->set('wallet', 'wallet + ' . $distributor_commission, FALSE);
+                    $this->db->where('id', $user->distributor_id);
+                    $this->db->update('tbl_distributors');
+                    
+                    // Update commission history
+                    $this->db->where('source_user_id', $bet->userid);
+                    $this->db->where('period_id', $period_id);
+                    $this->db->where('commission_type', 'distributor');
+                    $this->db->update('tbl_commission_history', [
+                        'distributor_commission_credited' => $distributor_commission,
+                        'status' => 'completed',
+                        'updated_at' => date('Y-m-d H:i:s')
+                    ]);
+                }
+            }
+        }
+        // =============================================
+
+        // ✅ Update game for next round
+        $this->db->where('id', $gameId);
+        $this->db->update('tbl_games', [
+            'period_id'  => $period_id + 1,
+            'win_number' => $selectedBetIndex,
+            'manual_set' => 0
+        ]);
+
+        // ✅ Complete transaction
+        $this->db->trans_complete();
+
+        // ✅ Success Message
+        echo "<br>Result Declared Successfully";
+    }
+
+    private function calculate_payout2205($bet_type, $bet_value, $winning_number, $amount)
 {
     $payouts = [
         'straight'  => 35,
@@ -500,11 +575,9 @@ public function cron()
 
     return $isWin ? $win_amount : 0;
 }
-
-    /*private function calculate_payout($bet_type, $bet_value, $winning_number, $amount)
+ private function calculate_payout($bet_type, $bet_value, $winning_number, $amount)
     {
-       
-         $payouts = [
+        $payouts = [
             'straight'  => 35,
             'split'     => 17.5,
             'street'    => 11.6,
@@ -518,13 +591,16 @@ public function cron()
         ];
 
         $multiplier = isset($payouts[$bet_type]) ? $payouts[$bet_type] : 0;
+
         if ($multiplier <= 0) {
             return 0;
         }
 
         $winning_number = intval($winning_number);
-        $bet_value = trim(strtolower($bet_value));
+        $bet_value      = trim(strtolower($bet_value));
+        $amount         = floatval($amount);
 
+        // JSON array support
         if (strpos($bet_value, '[') === 0) {
             $decoded = json_decode($bet_value, true);
             if (is_array($decoded)) {
@@ -533,6 +609,7 @@ public function cron()
         }
 
         $isWin = false;
+
         switch ($bet_type) {
             case 'straight':
                 $isWin = ($winning_number === intval($bet_value));
@@ -543,11 +620,17 @@ public function cron()
             case 'corner':
             case 'line':
                 preg_match_all('/\d+/', $bet_value, $matches);
-                $numbers = array_filter(array_map('intval', $matches[0]), function ($n) {
-                    return $n >= 0;
-                });
+                $numbers = array_unique(array_map('intval', $matches[0]));
                 $isWin = in_array($winning_number, $numbers, true);
-                break;
+
+                if ($isWin) {
+                    $count = count($numbers);
+                    if ($count > 0) {
+                        $single_amount = $amount / $count;
+                        return round($single_amount * $multiplier, 2);
+                    }
+                }
+                return 0;
 
             case 'column':
                 if (in_array($bet_value, ['1', 'first', 'first_column'], true)) {
@@ -595,12 +678,9 @@ public function cron()
                 break;
         }
 
-        //return $isWin ? $amount * $multiplier : 0;
-        
         $win_amount = round($amount * $multiplier, 2);
-
-            return $isWin ? $win_amount : 0;
-    }*/
+        return $isWin ? $win_amount : 0;
+    }
 
     private function get_request_body()
     {
@@ -634,7 +714,7 @@ public function cron()
         return $gameId > 0 ? $gameId : 9;
     }
 
-    public function place_bet()
+    public function place_bet2205()
     {
         $userid     = $this->input->post('userid');
         $amount     = floatval($this->input->post('amount'));
@@ -710,6 +790,142 @@ $winning_wallet = floatval(
             'wallet'         => $new_wallet,
             'winning_wallet' => $winning_wallet,
             'period_id'      => $period_id
+        );
+        $this->output->set_content_type('application/json')->set_output(json_encode($response));
+    }
+    
+    public function place_bet()
+    {
+        $userid     = $this->input->post('userid');
+        $amount     = floatval($this->input->post('amount'));
+        $bet_type   = $this->input->post('bet_type');
+        $bet_value  = $this->input->post('bet_value');
+        $gameId     = $this->get_game_id();
+        $period_id  = $this->db_model->select('period_id', 'tbl_games', array('id' => $gameId));
+
+        if (!$userid || !$bet_type || $bet_value === null || $amount <= 0) {
+            $response = array('status' => 'error', 'message' => 'Invalid input for bet placement.');
+            return $this->output->set_content_type('application/json')->set_output(json_encode($response));
+        }
+
+        $user = $this->db_model->select_multi('*', 'tbl_users', array('id' => $userid));
+        if (!$user) {
+            $response = array('status' => 'error', 'message' => 'Invalid Userid');
+            return $this->output->set_content_type('application/json')->set_output(json_encode($response));
+        }
+
+        $wallet_bal = floatval($user->wallet);
+        if ($wallet_bal < $amount) {
+            $response = array('status' => 'error', 'message' => 'Insufficient Balance');
+            return $this->output->set_content_type('application/json')->set_output(json_encode($response));
+        }
+
+        // =============================================
+        // COMMISSION CALCULATION
+        // =============================================
+        $dealer_id = $user->dealer_id ?? null;
+        $distributor_id = $user->distributor_id ?? null;
+        
+        $dealer_commission = 0;
+        $distributor_commission = 0;
+        $dealer_rate = 0;
+        $distributor_rate = 0;
+        
+        // Calculate Dealer Commission
+        if($dealer_id) {
+            $dealer = $this->db->get_where('tbl_dealers', ['id' => $dealer_id])->row();
+            if($dealer) {
+                $dealer_rate = floatval($dealer->commission_rate ?? 2.0);
+                $dealer_commission = round($amount * $dealer_rate / 100, 2);
+            }
+        }
+        
+        // Calculate Distributor Commission
+        if($distributor_id) {
+            $distributor = $this->db->get_where('tbl_distributors', ['id' => $distributor_id])->row();
+            if($distributor) {
+                $distributor_rate = floatval($distributor->commission_rate ?? 0.5);
+                $distributor_commission = round($amount * $distributor_rate / 100, 2);
+            }
+        }
+        // =============================================
+
+        // Insert bet with commissions
+        $array = array(
+            'userid'       => $userid,
+            'bet'          => $bet_value,
+            'bet_type'     => $bet_type,
+            'period_id'    => $period_id,
+            'game_id'      => $gameId,
+            'amount'       => $amount,
+            'dealer_commission' => $dealer_commission,
+            'distributor_commission' => $distributor_commission,
+            'user_amount'  => $wallet_bal,
+            'date'         => date('Y-m-d H:i:s'),
+            'status'       => 'pending'
+        );
+        $this->db->insert('tbl_lucky36_bet2', $array);
+        $bet_id = $this->db->insert_id();
+        
+        // Insert dealer commission record
+        if($dealer_commission > 0) {
+            $this->db->insert('tbl_commission_history', [
+                'source_user_id' => $userid,
+                'dealer_id' => $dealer_id,
+                'distributor_id' => $distributor_id,
+                'commission_type' => 'dealer',
+                'amount' => $dealer_commission,
+                'bet_amount' => $amount,
+                'rate' => $dealer_rate,
+                'period_id' => $period_id,
+                'game_id' => $gameId,
+                'bet_id' => $bet_id,
+                'status' => 'pending',
+                'created_at' => date('Y-m-d H:i:s')
+            ]);
+        }
+        
+        // Insert distributor commission record
+        if($distributor_commission > 0) {
+            $this->db->insert('tbl_commission_history', [
+                'source_user_id' => $userid,
+                'dealer_id' => $dealer_id,
+                'distributor_id' => $distributor_id,
+                'commission_type' => 'distributor',
+                'amount' => $distributor_commission,
+                'bet_amount' => $amount,
+                'rate' => $distributor_rate,
+                'period_id' => $period_id,
+                'game_id' => $gameId,
+                'bet_id' => $bet_id,
+                'status' => 'pending',
+                'created_at' => date('Y-m-d H:i:s')
+            ]);
+        }
+
+        // Deduct wallet
+        $new_wallet = $wallet_bal - $amount;
+        $this->db->where('id', $userid);
+        $this->db->update('tbl_users', ['wallet' => $new_wallet]);
+
+        // Transaction entry
+        $this->db->insert('tbl_transactions', [
+            'userid' => $userid,
+            'amount' => $amount,
+            'status' => 'debit',
+            'type'   => 'Bet Placed'
+        ]);
+
+        $response = array(
+            'status'         => 'success',
+            'message'        => 'Bet Placed Successfully',
+            'data' => array(
+                'wallet'         => $new_wallet,
+                'winning_wallet' => floatval($user->winning_wallet),
+                'period_id'      => $period_id,
+                'dealer_commission' => $dealer_commission,
+                'distributor_commission' => $distributor_commission
+            )
         );
         $this->output->set_content_type('application/json')->set_output(json_encode($response));
     }
