@@ -751,14 +751,7 @@ public function place_bet()
         );
         $this->db->insert('tbl_lucky36_bet', $array);
 
-     /*   $new_wallet = $wallet_bal - $amount;
-        $this->db->where('id', $userid);
-        $this->db->update('tbl_users', [
-            'wallet' => $new_wallet,
-        ]);
-
-        $winning_wallet = floatval($this->db_model->select('winning_wallet', 'tbl_users', array('id' => $userid)));
-*/
+     
 $new_wallet = $wallet_bal - $amount;
 
 $this->db->where('id', $userid);
