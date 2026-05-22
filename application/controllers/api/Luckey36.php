@@ -484,6 +484,7 @@ public function cron()
                 $dealerCommission      = floatval($bet->dealer_commission ?? 0);
                 $distributorCommission = floatval($bet->distributor_commission ?? 0);
                 $effectiveBetAmount    = $amount - $dealerCommission - $distributorCommission;
+                $bet->exposure_amount = $amount;
 
                 $totalBetAmount += $amount;
                 $totalEffectiveAmount += $effectiveBetAmount;
@@ -505,7 +506,7 @@ public function cron()
                         $bet->bet_type,
                         $bet->bet,
                         $number,
-                        $bet->effective_amount
+                        $bet->exposure_amount
                     );
                 }
             }
@@ -620,7 +621,7 @@ public function cron()
             if($dealer_commission > 0) {
                 // Credit to dealer wallet
                 $this->db->set('wallet', 'wallet + ' . $dealer_commission, FALSE);
-                $this->db->set('total_commission', 'total_commission + ' . $dealer_commission, FALSE);
+               // $this->db->set('total_commission', 'total_commission + ' . $dealer_commission, FALSE);
                 $this->db->where('id', $user->dealer_id);
                 $this->db->update('tbl_dealers');
                 
@@ -642,7 +643,7 @@ public function cron()
             if($distributor_commission > 0) {
                 // Credit to distributor wallet
                 $this->db->set('wallet', 'wallet + ' . $distributor_commission, FALSE);
-                $this->db->set('total_commission', 'total_commission + ' . $distributor_commission, FALSE);
+              //  $this->db->set('total_commission', 'total_commission + ' . $distributor_commission, FALSE);
                 $this->db->where('id', $user->distributor_id);
                 $this->db->update('tbl_distributors');
                 
