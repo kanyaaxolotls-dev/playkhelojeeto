@@ -123,6 +123,13 @@
                       </ul>
                   </li>
                   <?php } } ?>
+                  <!-- Admin Commission Menu - Add this in sidebar -->
+<li>
+    <a href="<?= base_url('backend/admin/admin_commission') ?>">
+        <i class="fa fa-line-chart"></i>
+        <span>Admin Commission</span>
+    </a>
+</li>
                    <!-- ===== MANUALLY ADDED DEALERS & DISTRIBUTORS ===== -->
       <li class="sub-menu">
           <a href="javascript:;">

@@ -116,4 +116,137 @@ class Admin extends CI_Controller {
 		$this->session->set_flashdata('site_flash', '<div class="alert alert-success">Logout Successfully.</div>');
 		redirect(site_url('backend/login'));
 	}
+	public function admin_commission()
+{
+    // Get filter parameters
+    $from_date = $this->input->get('from_date');
+    $to_date = $this->input->get('to_date');
+    $game_id = $this->input->get('game_id');
+    
+    $this->db->select('ac.*, g.name as game_name')
+        ->from('tbl_admin_commissions ac')
+        ->join('tbl_games g', 'g.id = ac.game_id', 'left');
+    
+    if($from_date) {
+        $this->db->where('DATE(ac.created_at) >=', $from_date);
+    }
+    if($to_date) {
+        $this->db->where('DATE(ac.created_at) <=', $to_date);
+    }
+    if($game_id && $game_id != 'all') {
+        $this->db->where('ac.game_id', $game_id);
+    }
+    
+    $this->db->order_by('ac.id', 'DESC');
+    $commissions = $this->db->get()->result();
+    
+    // Calculate totals
+    $total_admin_commission = array_sum(array_column($commissions, 'admin_commission'));
+    $total_bet_amount = array_sum(array_column($commissions, 'total_bet_amount'));
+    $total_rounds = count($commissions);
+    $avg_commission = $total_rounds > 0 ? $total_admin_commission / $total_rounds : 0;
+    
+    $data = [
+        'title' => 'Admin Commission Report',
+        'commissions' => $commissions,
+        'total_admin_commission' => $total_admin_commission,
+        'total_bet_amount' => $total_bet_amount,
+        'total_rounds' => $total_rounds,
+        'avg_commission' => $avg_commission,
+        'from_date' => $from_date,
+        'to_date' => $to_date,
+        'game_id' => $game_id
+    ];
+    
+    $this->load->view('admin/header', $data);
+    $this->load->view('admin/admin_commission_view', $data);
+    $this->load->view('admin/footer');
+}
+
+public function admin_commission_details()
+{
+    $period_id = $this->input->get('period_id');
+    $game_id = $this->input->get('game_id');
+    
+    // Get period summary
+    $summary = $this->db->get_where('tbl_admin_commissions', [
+        'period_id' => $period_id,
+        'game_id' => $game_id
+    ])->row();
+    
+    if(!$summary) {
+        show_404();
+    }
+    
+    // Get all bets for this period
+    $bets = $this->db->select('b.*, u.name, u.username')
+        ->from('tbl_lucky36_bet b')
+        ->join('tbl_users u', 'u.id = b.userid')
+        ->where('b.period_id', $period_id)
+        ->where('b.game_id', $game_id)
+        ->get()
+        ->result();
+    
+    $total_dealer_commission = array_sum(array_column($bets, 'dealer_commission'));
+    $total_distributor_commission = array_sum(array_column($bets, 'distributor_commission'));
+    
+    $data = [
+        'title' => 'Commission Details - Period #' . $period_id,
+        'period_id' => $period_id,
+        'total_bet_amount' => $summary->total_bet_amount,
+        'admin_commission' => $summary->admin_commission,
+        'winning_number' => $summary->winning_number,
+        'bets' => $bets,
+        'total_dealer_commission' => $total_dealer_commission,
+        'total_distributor_commission' => $total_distributor_commission
+    ];
+    
+    $this->load->view('admin/header', $data);
+    $this->load->view('admin/admin_commission_details', $data);
+    $this->load->view('admin/footer');
+}
+
+public function export_admin_commission()
+{
+    $from_date = $this->input->get('from_date');
+    $to_date = $this->input->get('to_date');
+    $game_id = $this->input->get('game_id');
+    
+    $this->db->select('ac.*, g.name as game_name')
+        ->from('tbl_admin_commissions ac')
+        ->join('tbl_games g', 'g.id = ac.game_id', 'left');
+    
+    if($from_date) {
+        $this->db->where('DATE(ac.created_at) >=', $from_date);
+    }
+    if($to_date) {
+        $this->db->where('DATE(ac.created_at) <=', $to_date);
+    }
+    if($game_id && $game_id != 'all') {
+        $this->db->where('ac.game_id', $game_id);
+    }
+    
+    $commissions = $this->db->get()->result();
+    
+    header('Content-Type: text/csv');
+    header('Content-Disposition: attachment; filename="admin_commission_report_' . date('Y-m-d') . '.csv"');
+    
+    $output = fopen('php://output', 'w');
+    fputcsv($output, ['ID', 'Period ID', 'Game', 'Total Bet Amount', 'Admin Commission (20%)', 'Winning Number', 'Date']);
+    
+    foreach($commissions as $c) {
+        fputcsv($output, [
+            $c->id,
+            $c->period_id,
+            $c->game_name ?? 'Lucky36',
+            $c->total_bet_amount,
+            $c->admin_commission,
+            $c->winning_number,
+            $c->created_at
+        ]);
+    }
+    
+    fclose($output);
+    exit();
+}
 }

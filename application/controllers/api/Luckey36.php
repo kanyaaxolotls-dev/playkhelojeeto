@@ -45,7 +45,7 @@ public function cron()
         if (empty($bets)) {
             $selectedBetIndex = rand(0, 35);
         } else {
-            $totalBetAmount      = 0;
+            /*$totalBetAmount      = 0;
             $totalEffectiveAmount = 0;
 
             foreach ($bets as $bet) {
@@ -60,8 +60,30 @@ public function cron()
                 $bet->effective_amount = $effectiveBetAmount;
             }
 
-            $adminCommission = round($totalEffectiveAmount * 0.20, 2);
-            $remainingProfit = $totalEffectiveAmount - $adminCommission;
+            $adminCommission = round($totalEffectiveAmount * 0.20, 2);*/
+            $totalBetAmount = 0;
+$totalDealerCommission = 0;
+$totalDistributorCommission = 0;
+
+foreach ($bets as $bet) {
+    $amount = floatval($bet->amount);
+    $dealerCommission = floatval($bet->dealer_commission ?? 0);
+    $distributorCommission = floatval($bet->distributor_commission ?? 0);
+    
+    $totalBetAmount += $amount;
+    $totalDealerCommission += $dealerCommission;
+    $totalDistributorCommission += $distributorCommission;
+    
+    $bet->exposure_amount = $amount;
+}
+
+// ✅ ADMIN COMMISSION = 20% of TOTAL BET AMOUNT
+$adminCommission = round($totalBetAmount * 20 / 100, 2);
+$totalEffectiveAmount = $totalBetAmount - $totalDealerCommission - $totalDistributorCommission;
+$remainingProfit = $totalEffectiveAmount - $adminCommission;
+            
+            
+           // $remainingProfit = $totalEffectiveAmount - $adminCommission;
 
             if ($remainingProfit < 0) {
                 $remainingProfit = 0;
@@ -126,7 +148,16 @@ public function cron()
         'game_id'   => $gameId,
         'win_number'=> $selectedBetIndex
     ]);
+$this->db->insert('tbl_admin_commissions', [
+    'period_id' => $period_id,
+    'game_id' => $gameId,
+    'total_bet_amount' => $totalBetAmount,
+    'admin_commission' => $adminCommission,
+    'winning_number' => $selectedBetIndex,
+    'created_at' => date('Y-m-d H:i:s')
+]);
 
+echo "<br>✅ Admin Commission (20% of ₹{$totalBetAmount}) = ₹{$adminCommission} stored for Period: {$period_id}";
     // =========================
     // FETCH BETS
     // =========================
@@ -228,6 +259,33 @@ public function cron()
             }
         }
     }
+    foreach ($bets as $bet) {
+    $admin_comm = round($bet->amount * 20 / 100, 2);
+    if($admin_comm > 0) {
+        $exists = $this->db->get_where('tbl_commission_history', [
+            'source_user_id' => $bet->userid,
+            'period_id' => $period_id,
+            'commission_type' => 'admin'
+        ])->row();
+        
+        if(!$exists) {
+            $this->db->insert('tbl_commission_history', [
+                'source_user_id' => $bet->userid,
+                'dealer_id' => $bet->dealer_id ?? null,
+                'distributor_id' => $bet->distributor_id ?? null,
+                'commission_type' => 'admin',
+                'amount' => $admin_comm,
+                'bet_amount' => $bet->amount,
+                'rate' => 20,
+                'period_id' => $period_id,
+                'game_id' => $gameId,
+                'bet_id' => $bet->id,
+                'status' => 'completed',
+                'created_at' => date('Y-m-d H:i:s')
+            ]);
+        }
+    }
+}
     // =============================================
 
     // =========================
@@ -520,6 +578,8 @@ public function place_bet()
             $distributor_commission = round($amount * $distributor_rate / 100, 2);
         }
     }
+    
+     $admin_commission = round($amount * 20 / 100, 2);
     // =============================================
 
     // Insert bet with both commissions
@@ -532,6 +592,7 @@ public function place_bet()
         'amount'       => $amount,
         'dealer_commission' => $dealer_commission,
         'distributor_commission' => $distributor_commission,
+         'admin_commission' => $admin_commission,
         'user_amount'  => $wallet_bal,
         'date'         => date('Y-m-d H:i:s'),
         'status'       => 'pending'
@@ -596,7 +657,8 @@ public function place_bet()
             'winning_wallet' => floatval($user->winning_wallet),
             'period_id'      => $period_id,
             'dealer_commission' => $dealer_commission,
-            'distributor_commission' => $distributor_commission
+            'distributor_commission' => $distributor_commission,
+             'admin_commission' => $admin_commission
         )
     );
     $this->output->set_content_type('application/json')->set_output(json_encode($response));
@@ -751,7 +813,14 @@ public function place_bet()
         );
         $this->db->insert('tbl_lucky36_bet', $array);
 
-     
+     /*   $new_wallet = $wallet_bal - $amount;
+        $this->db->where('id', $userid);
+        $this->db->update('tbl_users', [
+            'wallet' => $new_wallet,
+        ]);
+
+        $winning_wallet = floatval($this->db_model->select('winning_wallet', 'tbl_users', array('id' => $userid)));
+*/
 $new_wallet = $wallet_bal - $amount;
 
 $this->db->where('id', $userid);
