@@ -226,7 +226,7 @@ public function create_user() {
         return floatval($result->amount ?? 0);
     }
 
-    private function get_dealer_commission_details($dealer_id) {
+   /* private function get_dealer_commission_details($dealer_id) {
         $this->db->select('ch.*, u.name as user_name');
         $this->db->from('tbl_commission_history ch');
         $this->db->join('tbl_users u', 'u.id = ch.source_user_id', 'left');
@@ -235,7 +235,37 @@ public function create_user() {
         $this->db->order_by('ch.created_at', 'DESC');
         $this->db->limit(100);
         return $this->db->get()->result();
-    }
+    }*/
+    private function get_dealer_commission_details($dealer_id) {
+
+    $this->db->select('
+        ch.*, 
+        u.name as user_name,
+        g.name as game_name
+    ');
+
+    $this->db->from('tbl_commission_history ch');
+
+    $this->db->join(
+        'tbl_users u',
+        'u.id = ch.source_user_id',
+        'left'
+    );
+
+    $this->db->join(
+        'tbl_games g',
+        'g.id = ch.game_id',
+        'left'
+    );
+
+    $this->db->where('ch.dealer_id', $dealer_id);
+    $this->db->where('ch.commission_type', 'dealer');
+
+    $this->db->order_by('ch.created_at', 'DESC');
+    $this->db->limit(100);
+
+    return $this->db->get()->result();
+}
     
 public function view_user($user_id) {
     $dealer_id = $this->session->userdata('dealer_id');

@@ -9,7 +9,10 @@ class Luckey36Game2 extends CI_Controller {
 
         $gameId = $this->get_game_id();
         $game = $this->db->get_where('tbl_games', ['id' => $gameId])->row();
-
+$totalBetAmount = 0;
+    $adminCommission = 0;
+    $totalDealerCommission = 0;
+    $totalDistributorCommission = 0;
         if (!$game) {
             return;
         }
@@ -72,12 +75,8 @@ class Luckey36Game2 extends CI_Controller {
                 }
 
                 // Debug output
-                echo "Period: " . $period_id . "<br>";
-                echo "Total Bet Amount: ₹" . $totalBetAmount . "<br>";
-                echo "Total Dealer Commission: ₹" . $totalDealerCommission . "<br>";
-                echo "Total Distributor Commission: ₹" . $totalDistributorCommission . "<br>";
-                echo "✅ Admin Commission (20% of Total Bet): ₹" . $adminCommission . "<br>";
-                echo "Remaining for Payouts: ₹" . $remainingProfit . "<br>";
+    echo $period_id.'<br>'.$selectedBetIndex;
+               
 
                 // Calculate exposures
                 $exposures = array_fill(0, 36, 0.0);
@@ -145,7 +144,6 @@ class Luckey36Game2 extends CI_Controller {
         }
 
         // ✅ PRINT RESULT
-        echo "<br>Winning Number: " . $selectedBetIndex;
 
         // =========================
         // INSERT RESULT
@@ -180,7 +178,7 @@ class Luckey36Game2 extends CI_Controller {
             'created_at' => date('Y-m-d H:i:s')
         ]);
         
-        echo "<br>✅ Admin Commission (20% of ₹{$totalBetAmount}) = ₹{$adminCommission} stored for Period: {$period_id}";
+    echo $period_id.'<br>'.$selectedBetIndex;
 
         // =========================
         // FETCH BETS
@@ -334,7 +332,7 @@ class Luckey36Game2 extends CI_Controller {
         $this->db->trans_complete();
 
         // ✅ Success Message
-        echo "<br>🎯 Cron Completed Successfully!";
+     //   echo "<br>🎯 Cron Completed Successfully!";
     }
 
     public function place_bet()
@@ -1575,7 +1573,7 @@ $winning_wallet = floatval(
         $this->output->set_content_type('application/json')->set_output(json_encode($response));
     }
 
-    public function take()
+   /* public function take()
     {
         $userid = $this->input->post('userid');
         if (empty($userid)) {
@@ -1627,7 +1625,7 @@ $winning_wallet = floatval(
         }
         $this->output->set_content_type('application/json')->set_output(json_encode($response));
     }
-
+*/
     public function total_bets()
     {
         $userid    = $this->input->post('userid');

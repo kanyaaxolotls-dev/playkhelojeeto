@@ -89,10 +89,19 @@
                 <div class="col-md-3">
                     <label class="form-label">Game</label>
                     <select name="game_id" class="form-select">
-                        <option value="all">All Games</option>
-                        <option value="8" <?= ($game_id ?? '') == '8' ? 'selected' : '' ?>>Lucky36</option>
-                        <option value="9" <?= ($game_id ?? '') == '9' ? 'selected' : '' ?>>Lucky36 GME</option>
-                    </select>
+    <option value="all">All Games</option>
+
+    <?php
+    $games = $this->db->get('tbl_games')->result();
+
+    foreach($games as $game):
+    ?>
+        <option value="<?= $game->id ?>"
+            <?= ($game_id ?? '') == $game->id ? 'selected' : '' ?>>
+            <?= $game->name ?>
+        </option>
+    <?php endforeach; ?>
+</select>
                 </div>
                 <div class="col-md-3 d-flex align-items-end">
                     <button type="submit" class="btn btn-primary me-2">

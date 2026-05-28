@@ -103,6 +103,8 @@ class Hierarchy_model extends CI_Model {
             'lucky36'   => 'tbl_lucky36_bet',
             'lucky36gme'=> 'tbl_lucky36_bet2',
             'aviator'   => 'tbl_aviator_bet',
+            'funroulette'  => 'tbl_funroulette_bet', // ADD THIS
+
         ];
         return isset($map[$game_type]) ? $map[$game_type] : null;
     }
@@ -339,7 +341,7 @@ class Hierarchy_model extends CI_Model {
     /**
      * Get distributor commission details with pagination
      */
-    public function get_distributor_commission_details($distributor_id, $limit = null, $offset = 0) {
+    /*public function get_distributor_commission_details($distributor_id, $limit = null, $offset = 0) {
         $this->db->select('ch.*, u.name as user_name, d.name as dealer_name');
         $this->db->from('tbl_commission_history ch');
         $this->db->join('tbl_users u', 'u.id = ch.source_user_id', 'left');
@@ -353,7 +355,48 @@ class Hierarchy_model extends CI_Model {
         }
         
         return $this->db->get()->result();
+    }*/
+    
+    public function get_distributor_commission_details($distributor_id, $limit = null, $offset = 0) {
+
+    $this->db->select('
+        ch.*, 
+        u.name as user_name, 
+        d.name as dealer_name,
+        g.name as game_name
+    ');
+
+    $this->db->from('tbl_commission_history ch');
+
+    $this->db->join(
+        'tbl_users u',
+        'u.id = ch.source_user_id',
+        'left'
+    );
+
+    $this->db->join(
+        'tbl_dealers d',
+        'd.id = ch.dealer_id',
+        'left'
+    );
+
+    $this->db->join(
+        'tbl_games g',
+        'g.id = ch.game_id',
+        'left'
+    );
+
+    $this->db->where('ch.distributor_id', $distributor_id);
+    $this->db->where('ch.commission_type', 'distributor');
+
+    $this->db->order_by('ch.created_at', 'DESC');
+
+    if($limit) {
+        $this->db->limit($limit, $offset);
     }
+
+    return $this->db->get()->result();
+}
 
     /**
      * Get distributor transactions history
@@ -533,6 +576,7 @@ public function get_user_game_history($user_id, $limit = 50, $offset = 0) {
                 'date' => 'date'
             ]
         ],
+        
         'tbl_lucky36_bet2' => [
             'name' => 'Lucky36 GME',
             'columns' => [
@@ -545,7 +589,21 @@ public function get_user_game_history($user_id, $limit = 50, $offset = 0) {
                 'status' => 'status',
                 'date' => 'date'
             ]
-        ]
+        ],
+        
+        'tbl_funroulette_bet' => [
+    'name' => 'FunRoulette',
+    'columns' => [
+        'bet_id' => 'id',
+        'period_id' => 'period_id',
+        'bet_type' => 'bet_type',
+        'bet_number' => 'bet',
+        'bet_amount' => 'amount',
+        'win_amount' => 'win_amount',
+        'status' => 'status',
+        'date' => 'date'
+    ]
+]
     ];
     
     foreach($game_tables as $table => $config) {
@@ -589,8 +647,8 @@ public function get_user_game_history($user_id, $limit = 50, $offset = 0) {
             
             // Status case for display
             $select .= "CASE 
-                WHEN {$table}.{$columns['status']} = 'win' THEN 'Win'
-                WHEN {$table}.{$columns['status']} = 'loss' THEN 'Loss'
+                WHEN {$table}.{$columns['status']} = 'won' THEN 'Win'
+                WHEN {$table}.{$columns['status']} = 'lost' THEN 'Loss'
                 WHEN {$table}.{$columns['status']} = 'cancelled' THEN 'Cancelled'
                 ELSE 'Pending'
             END as result_status";
@@ -633,6 +691,8 @@ public function get_user_game_summary($user_id) {
         'tbl_funtarget_bet' => 'Funtarget',
         'tbl_lucky36_bet' => 'Lucky36',
         'tbl_lucky36_bet2' => 'Lucky36 GME',
+            'tbl_funroulette_bet' => 'FunRoulette', // ADD THIS
+
     ];
     
     foreach($game_tables as $table => $game_name) {

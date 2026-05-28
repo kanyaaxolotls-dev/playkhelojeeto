@@ -33,7 +33,7 @@
                     <td><?= $comm->user_name ?? 'N/A' ?></td>
                     <td><span class="text-success">₹ <?= number_format($comm->amount, 2) ?></span></td>
                     <td><?= $comm->rate ?>%</td>
-                    <td><?= ucfirst($comm->game_type ?? 'N/A') ?></td>
+                    <td><?= ucfirst($comm->game_name ?? 'N/A') ?></td>
                 </tr>
                 <?php endforeach; ?>
             </tbody>

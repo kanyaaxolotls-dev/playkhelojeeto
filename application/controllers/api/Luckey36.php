@@ -11,7 +11,10 @@ public function cron()
 
     $gameId = $this->get_game_id();
     $game = $this->db->get_where('tbl_games', ['id' => $gameId])->row();
-
+$totalBetAmount = 0;
+    $adminCommission = 0;
+    $totalDealerCommission = 0;
+    $totalDistributorCommission = 0;
     if (!$game) {
         return;
     }
@@ -138,7 +141,6 @@ $remainingProfit = $totalEffectiveAmount - $adminCommission;
         }
     }
     
-    echo $period_id.'<br>'.$selectedBetIndex;
 
     // =========================
     // INSERT RESULT
@@ -157,7 +159,7 @@ $this->db->insert('tbl_admin_commissions', [
     'created_at' => date('Y-m-d H:i:s')
 ]);
 
-echo "<br>✅ Admin Commission (20% of ₹{$totalBetAmount}) = ₹{$adminCommission} stored for Period: {$period_id}";
+    echo $period_id.'<br>'.$selectedBetIndex;
     // =========================
     // FETCH BETS
     // =========================
@@ -1003,7 +1005,7 @@ $winning_wallet = floatval(
         $this->output->set_content_type('application/json')->set_output(json_encode($response));
     }
 
-    public function take()
+    /*public function take()
     {
         $userid = $this->input->post('userid');
         if (empty($userid)) {
@@ -1054,7 +1056,7 @@ $winning_wallet = floatval(
             );
         }
         $this->output->set_content_type('application/json')->set_output(json_encode($response));
-    }
+    }*/
 
     public function total_bets()
     {

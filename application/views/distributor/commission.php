@@ -84,7 +84,7 @@
                             <td><?= $comm->dealer_name ?? 'N/A' ?></td>
                             <td class="text-success fw-bold">₹ <?= number_format($comm->amount, 2) ?></td>
                             <td><span class="badge" style="background: #17a2b8; color: white;"><?= $comm->rate ?>%</span></td>
-                            <td><?= ucfirst($comm->game_type ?? 'N/A') ?></td>
+                            <td><?= ucfirst($comm->game_name ?? 'N/A') ?></td>
                             <td>
                                 <span class="badge" style="background: #28a745; color: white;">Completed</span>
                             </td>
