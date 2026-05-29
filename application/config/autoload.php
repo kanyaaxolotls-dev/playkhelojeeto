@@ -89,7 +89,7 @@ $autoload['drivers'] = array();
 |
 |	$autoload['helper'] = array('url', 'file');
 */
-$autoload['helper'] = array('url', 'file','form');
+$autoload['helper'] = array('url', 'file', 'form', 'rbac');
 
 /*
 | -------------------------------------------------------------------
@@ -132,6 +132,6 @@ $autoload['language'] = array();
 |
 |	$autoload['model'] = array('first_model' => 'first');
 */
-$autoload['model'] = array('db_model','DragonTiger','Cron_model','Win_model');
+$autoload['model'] = array('db_model', 'rbac_model', 'DragonTiger', 'Cron_model', 'Win_model');
 
 

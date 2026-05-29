@@ -1,13 +1,10 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class Dashboard extends CI_Controller {
+class Dashboard extends Dealer_Controller {
 
     public function __construct() {
         parent::__construct();
-        if (!$this->session->userdata('dealer_id')) {
-            redirect(site_url('dealer/login'));
-        }
         $this->load->model('Hierarchy_model');
         $this->load->model('db_model');
     }
@@ -57,6 +54,7 @@ class Dashboard extends CI_Controller {
 
 public function create_user() {
     if ($this->input->post('name')) {
+        rbac_require('create_user');
         $dealer_id = $this->session->userdata('dealer_id');
         
         // Get distributor_id from dealer table, not from session
@@ -123,9 +121,14 @@ public function create_user() {
     }*/
 
     public function update_user_wallet() {
+        $transaction_type = $this->input->post('transaction_type');
+        if ($transaction_type === 'debit') {
+            rbac_require('wallet_debit');
+        } else {
+            rbac_require('wallet_credit');
+        }
         $user_id = $this->input->post('user_id');
         $amount = $this->input->post('amount');
-        $transaction_type = $this->input->post('transaction_type');
         $dealer_id = $this->session->userdata('dealer_id');
         
         // Verify user belongs to this dealer
@@ -175,6 +178,7 @@ public function create_user() {
     }
 
     public function commission() {
+        rbac_require('view_transaction_history');
         $dealer_id = $this->session->userdata('dealer_id');
         
         $data['commissions'] = $this->get_dealer_commission_details($dealer_id);

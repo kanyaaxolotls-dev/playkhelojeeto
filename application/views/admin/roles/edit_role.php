@@ -27,19 +27,12 @@
             <input type="text" class="form-control" id="full-pass" required name="pass" value="<?= $detail->password ?>" placeholder="Enter Password">
         </div>
         <div class="form-group">
-            <label for="name">Select Role</label>
-            <select class="form-control" name="role" required>
-                <option value="" selected disabled>Select Role</option>
-                <?php 
-                  $this->db->select('*')->from('tbl_roles')->where('status', 1);
-                  $query = $this->db->get()->result_array();
-                  foreach($query as $optn){
-                    if($optn['name'] == $detail->role){
-                ?>
-                <option value="<?php echo $optn['name'] ?>" selected><?php echo $optn['name'] ?> </option>
-                <?php }else{ ?>
-                  <option value="<?php echo $optn['name'] ?>"><?php echo $optn['name'] ?> </option>
-                <?php }} ?>
+            <label for="role_id">Select Admin Role</label>
+            <select class="form-control" name="role_id" required>
+                <option value="" disabled>Select Role</option>
+                <?php foreach ($role_options as $optn) { ?>
+                <option value="<?= (int)$optn->id ?>" <?= ((int)($detail->role_id ?? 0) === (int)$optn->id) ? 'selected' : '' ?>><?= html_escape($optn->name) ?></option>
+                <?php } ?>
             </select>
           </div>
           <button type="submit" class="btn btn-primary">Update</button>

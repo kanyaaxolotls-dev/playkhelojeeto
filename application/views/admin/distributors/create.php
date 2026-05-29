@@ -56,6 +56,17 @@
                                 <small class="text-muted">Admin Wallet Balance: ₹ <?= number_format($admin_wallet, 2) ?></small>
                             </div>
                         </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label>Distributor Role <span class="text-danger">*</span></label>
+                                <select name="role_id" class="form-control" required>
+                                    <?php foreach ($distributor_roles as $r): ?>
+                                    <option value="<?= (int)$r->id ?>" <?= ($r->slug ?? '') === 'distributor-full' ? 'selected' : '' ?>><?= html_escape($r->name) ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                                <small class="text-muted">Manage roles at Backend → Manage Roles (Panel: Distributor)</small>
+                            </div>
+                        </div>
                     </div>
                 </div>
                 <div class="card-footer">

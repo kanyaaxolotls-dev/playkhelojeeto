@@ -339,6 +339,18 @@
     </style>
 </head>
 <body>
+<?php
+if ($this->session->distributor_id) {
+    $dist = $this->db->get_where('tbl_distributors', ['id' => $this->session->distributor_id])->row();
+    if ($dist && !empty($dist->role_id)) {
+        $this->session->set_userdata(['role_id' => (int) $dist->role_id, 'panel' => 'distributor']);
+    }
+    if (!is_array($this->session->userdata('permission_slugs')) && $this->session->userdata('role_id')) {
+        $this->load->model('rbac_model');
+        $this->rbac_model->sync_permissions_to_session((int) $this->session->userdata('role_id'));
+    }
+}
+?>
 
 <!-- Sidebar -->
 <div class="sidebar" id="sidebar">
@@ -348,36 +360,7 @@
     </div>
     <div class="sidebar-menu">
         <ul class="nav flex-column">
-            <li class="nav-item">
-                <a class="nav-link <?= ($this->uri->segment(2) == 'dashboard') ? 'active' : '' ?>" 
-                   href="<?= site_url('distributor/dashboard') ?>">
-                    <i class="fas fa-tachometer-alt"></i> Dashboard
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?= ($this->uri->segment(2) == 'dealers') ? 'active' : '' ?>" 
-                   href="<?= site_url('distributor/dashboard/dealers') ?>">
-                    <i class="fas fa-users"></i> Manage Dealers
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?= ($this->uri->segment(2) == 'users') ? 'active' : '' ?>" 
-                   href="<?= site_url('distributor/dashboard/users') ?>">
-                    <i class="fas fa-user"></i> View Users
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?= ($this->uri->segment(2) == 'commission') ? 'active' : '' ?>" 
-                   href="<?= site_url('distributor/dashboard/commission') ?>">
-                    <i class="fas fa-coins"></i> Commission
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?= ($this->uri->segment(2) == 'reports') ? 'active' : '' ?>" 
-                   href="<?= site_url('distributor/dashboard/reports') ?>">
-                    <i class="fas fa-chart-bar"></i> Reports
-                </a>
-            </li>
+            <?php $this->load->view('partials/rbac_sidebar_modern', ['panel' => 'distributor']); ?>
             <li class="nav-item">
                 <a class="nav-link text-danger" href="<?= site_url('distributor_login/logout') ?>">
                     <i class="fas fa-sign-out-alt"></i> Logout

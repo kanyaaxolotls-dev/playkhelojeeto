@@ -49,9 +49,11 @@
         <div>
             <i class="fas fa-list"></i> My Dealers
         </div>
+        <?php if (rbac_has('create_dealer')) { ?>
         <a href="<?= site_url('distributor/dashboard/create_dealer') ?>" class="btn-custom btn-sm">
             <i class="fas fa-plus"></i> Add New Dealer
         </a>
+        <?php } ?>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -94,12 +96,16 @@
                                     <button class="btn btn-info btn-sm" onclick="viewDealer(<?= $dealer->id ?>)" title="View Dealer" style="background: #17a2b8; border: none;">
                                         <i class="fas fa-eye"></i>
                                     </button>
+                                    <?php if (rbac_has('wallet_credit') || rbac_has('wallet_debit')) { ?>
                                     <button class="btn btn-success btn-sm" onclick="updateWallet(<?= $dealer->id ?>, <?= $dealer->wallet ?>)" title="Update Wallet" style="background: #28a745; border: none;">
                                         <i class="fas fa-money-bill"></i>
                                     </button>
+                                    <?php } ?>
+                                    <?php if (rbac_has('delete_user')) { ?>
                                     <button class="btn btn-danger btn-sm" onclick="deleteDealer(<?= $dealer->id ?>)" title="Delete" style="background: #dc3545; border: none;">
                                         <i class="fas fa-trash"></i>
                                     </button>
+                                    <?php } ?>
                                 </div>
                             </td>
                         </tr>

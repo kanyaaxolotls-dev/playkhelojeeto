@@ -1,5 +1,28 @@
 <?php
-    $name           = $this->db_model->select('role', 'tbl_admin', array('id' => $this->session->admin_id));
+    $admin_row      = $this->db_model->select_multi('role, role_id', 'tbl_admin', array('id' => $this->session->admin_id));
+    $name           = $admin_row ? $admin_row->role : 'Admin';
+    if ($admin_row && !empty($admin_row->role_id)) {
+        $this->session->set_userdata('role_id', (int) $admin_row->role_id);
+        $this->session->set_userdata('panel', 'admin');
+    } elseif (!$this->session->userdata('role_id')) {
+        $this->session->set_userdata('role_id', 1);
+        $this->session->set_userdata('panel', 'admin');
+    }
+    $role_id = (int) $this->session->userdata('role_id');
+    if ($role_id > 0) {
+        $this->load->model('rbac_model');
+        if (!is_array($this->session->userdata('permission_slugs'))) {
+            $this->rbac_model->sync_permissions_to_session($role_id);
+        }
+        $admin_whitelist = ['backend/admin', 'backend/admin/profile', 'backend/admin/change_pass', 'backend/admin/logout'];
+        $rk = rbac_route_key();
+        $roles_module = (strpos($rk, 'backend/roles/') === 0);
+        if ($roles_module && rbac_can_manage_roles_module()) {
+            // allow role setup / management
+        } elseif (!in_array($rk, $admin_whitelist, true) && !rbac_can($rk, 'admin')) {
+            show_error('You do not have permission to access this page.', 403);
+        }
+    }
     $data           = $this->db_model->select_multi('*', 'tbl_settings', array('id' => 1));
     $length         = strlen($data->name);
     $split_position = intval($length / 2); 
@@ -69,92 +92,7 @@
       <aside>
           <div id="sidebar"  class="nav-collapse ">
               <ul class="sidebar-menu" id="nav-accordion">
-                <?php
-                    $options = $this->db_model->get_all_data('tbl_task_manager', 'status = 1', 'DESC', 'position');
-                    $tasks = $this->db_model->select('tasks', 'tbl_roles', array('name' => $name));
-                    $array = explode(",", $tasks);
-                    $this->db->where_in('id', $array);
-                    $this->db->where('status',1);
-                    $this->db->where('child_of',0);
-                    $this->db->order_by('position', 'asc');
-                    $query  = $this->db->get('tbl_task_manager');     
-                    $optins = $query->result();
-                    $i      = 1;
-                    foreach($optins as $menu){
-                    $parts = explode('/', $menu->url);
-                    if($this->uri->segment(2) == $parts[1]){
-                        $cls     = 'active';
-                    }
-                    else{
-                        $cls     = '';
-                    }
-                    $this->db->where_in('id', $array);
-                    $this->db->where('child_of',$menu->id);
-                    $resultr = $this->db->get('tbl_task_manager')->num_rows();
-                    if($menu->child_of == 0 and $resultr == 0 ){
-                        $i++;
-                ?>
-                  <li>
-                      <a class="<?= $cls ?>" href="<?= base_url($menu->url) ?>">
-                          <i class="<?= $menu->img ?>"></i>
-                          <span><?= $menu->name ?></span>
-                      </a>
-                  </li>
-                  <?php }else{ ?>
-                  <li class="sub-menu">
-                      <a href="javascript:;" class="<?= $cls ?>">
-                          <i class="<?= $menu->img ?>"></i>
-                          <span><?= $menu->name ?></span>
-                      </a>
-                      <ul class="sub">
-                        <?php
-                            $child_options     = $this->db_model->get_all_data('tbl_task_manager','status = 1 And child_of ='.$menu->id);
-                            foreach($child_options as $child_menu){
-                                $parts = explode('/', $child_menu->url);
-                                if($this->uri->segment(3) == $parts[2]){
-                                    $cls     = 'active';
-                                }
-                                else{
-                                    $cls     = '';
-                                }
-                        ?>
-                          <li class="<?= $cls ?>"><a  href="<?= base_url($child_menu->url) ?>"><?= $child_menu->name ?></a></li>
-                        <?php } ?>
-                      </ul>
-                  </li>
-                  <?php } } ?>
-                  <!-- Admin Commission Menu - Add this in sidebar -->
-<li>
-    <a href="<?= base_url('backend/admin/admin_commission') ?>">
-        <i class="fa fa-line-chart"></i>
-        <span>Admin Commission</span>
-    </a>
-</li>
-                   <!-- ===== MANUALLY ADDED DEALERS & DISTRIBUTORS ===== -->
-      <li class="sub-menu">
-          <a href="javascript:;">
-              <i class="fa fa-building"></i>
-              <span>Distributors</span>
-          </a>
-          <ul class="sub">
-              <li><a href="<?= base_url('backend/distributors') ?>">All Distributors</a></li>
-              <li><a href="<?= base_url('backend/distributors/create') ?>">Add Distributor</a></li>
-              <li><a href="<?= base_url('backend/distributors/commission') ?>">Commission Report</a></li>
-          </ul>
-      </li>
-      
-      <li class="sub-menu">
-          <a href="javascript:;">
-              <i class="fa fa-users"></i>
-              <span>Dealers</span>
-          </a>
-          <ul class="sub">
-              <li><a href="<?= base_url('backend/dealers') ?>">All Dealers</a></li>
-              <li><a href="<?= base_url('backend/dealers/create') ?>">Add Dealer</a></li>
-              <li><a href="<?= base_url('backend/dealers/commission') ?>">Commission Report</a></li>
-          </ul>
-      </li>
-      <!-- ===== END OF MANUALLY ADDED MENUS ===== -->
+                <?php $this->load->view('partials/rbac_sidebar_admin'); ?>
                   <li>
                     <a class="text-danger" href="<?= base_url('backend/admin/logout') ?>">
                         <i class="fa fa-key"></i>

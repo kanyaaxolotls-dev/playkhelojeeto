@@ -34,6 +34,15 @@
                         <label>Commission Rate (%)</label>
                         <input type="number" step="0.01" class="form-control" name="commission_rate" value="2.00" required>
                     </div>
+                    <div class="form-group">
+                        <label>Dealer Role</label>
+                        <select name="role_id" class="form-control" required>
+                            <?php foreach ($dealer_roles as $r): ?>
+                            <option value="<?= (int)$r->id ?>" <?= ($r->slug ?? '') === 'dealer-full' ? 'selected' : '' ?>><?= html_escape($r->name) ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                        <small class="text-muted">Create custom dealer roles under Manage Roles (Panel: Dealer)</small>
+                    </div>
                     <button type="submit" class="btn btn-primary">Create Dealer</button>
                     <a href="<?php echo site_url('backend/dealers'); ?>" class="btn btn-default">Cancel</a>
                 </form>

@@ -42,6 +42,8 @@ class Distributors extends CI_Controller {
         if (!$this->check_admin()) return;
         
         if ($this->input->post('name')) {
+            $this->load->helper('rbac');
+            rbac_require('create_distributor');
             $name = trim($this->input->post('name'));
             $phone = trim($this->input->post('phone'));
             $password = trim($this->input->post('password'));
@@ -64,6 +66,11 @@ class Distributors extends CI_Controller {
                         $this->db->trans_start();
                         
                         // Insert distributor
+                        $role_id = (int) $this->input->post('role_id');
+                        if ($role_id <= 0) {
+                            $this->load->model('rbac_model');
+                            $role_id = $this->rbac_model->default_role_id_for_panel('distributor');
+                        }
                         $this->db->insert('tbl_distributors', [
                             'name' => $name,
                             'phone' => $phone,
@@ -71,6 +78,7 @@ class Distributors extends CI_Controller {
                             'wallet' => $initial_wallet,
                             'commission_rate' => $commission_rate ?: 0.50,
                             'status' => 1,
+                            'role_id' => $role_id,
                             'admin_id' => $this->session->admin_id,
                             'created_at' => date('Y-m-d H:i:s'),
                         ]);
@@ -114,6 +122,8 @@ class Distributors extends CI_Controller {
         // Get admin wallet balance for display
         $admin = $this->db->get_where('tbl_admin', ['id' => $this->session->admin_id])->row();
         $data['admin_wallet'] = floatval($admin->wallet ?? 0);
+        $this->load->model('rbac_model');
+        $data['distributor_roles'] = $this->rbac_model->get_roles_by_panel('distributor');
         $data['title'] = 'Create Distributor';
         $this->load->view('admin/header', $data);
         $this->load->view('admin/distributors/create', $data);
@@ -150,7 +160,22 @@ class Distributors extends CI_Controller {
     // =============================================
 public function update_wallet() {
     $this->output->set_content_type('application/json');
-    
+    $this->load->helper('rbac');
+    $type = $this->input->post('transaction_type');
+    if (!$type) {
+        $input = json_decode(file_get_contents('php://input'), true);
+        $type = $input['transaction_type'] ?? 'credit';
+    }
+    if ($type === 'debit') {
+        if (!rbac_has('wallet_debit')) {
+            echo json_encode(['success' => false, 'message' => 'Permission Denied']);
+            return;
+        }
+    } elseif (!rbac_has('wallet_credit')) {
+        echo json_encode(['success' => false, 'message' => 'Permission Denied']);
+        return;
+    }
+
     // Check session
     if ($this->session->admin_id == NULL) {
         echo json_encode(['success' => false, 'message' => 'Session expired. Please login again.']);

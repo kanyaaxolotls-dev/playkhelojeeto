@@ -1321,4 +1321,230 @@ $winning_wallet = floatval(
         ->set_output(json_encode($response));
 }
 
+
+public function userhistory()
+{
+    $userid = $this->input->post('userid');
+    $gameid = $this->input->post('gameid');
+
+    // fallback JSON support
+    if (!$userid || !$gameid) {
+        $body = json_decode(file_get_contents('php://input'), true);
+        $userid = $userid ?: ($body['userid'] ?? null);
+        $gameid = $gameid ?: ($body['gameid'] ?? null);
+    }
+
+    if (empty($userid) || empty($gameid)) {
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode([
+                'status' => 'error',
+                'message' => 'userid and gameid are required'
+            ]));
+    }
+
+    $this->db->select('id, date, period_id, amount, result_number, win_amount, status, game_id');
+    $this->db->from('tbl_lucky36_bet');
+    $this->db->where('userid', $userid);
+    $this->db->where('game_id', $gameid);
+    $this->db->order_by('id', 'DESC');
+
+    $history = $this->db->get()->result();
+
+    $data = [];
+    $sr = 1;
+
+    foreach ($history as $row) {
+        $data[] = [
+            'sr_no'      => $sr++,
+            'date'       => $row->date,
+            'period_id'  => $row->period_id,
+            'amount'     => $row->amount,
+            'result'     => $row->result_number,
+            'win_amount' => $row->win_amount,
+            'status'     => $row->status
+        ];
+    }
+
+    return $this->output
+        ->set_content_type('application/json')
+        ->set_output(json_encode([
+            'status' => 'success',
+            'data'   => $data
+        ]));
+}
+
+
+public function userhistory_by_date()
+{
+    $userid = $this->input->post('userid');
+    $gameid = $this->input->post('gameid');
+    $date   = $this->input->post('date');
+
+    // JSON support
+    if (!$userid || !$gameid || !$date) {
+
+        $body = json_decode(file_get_contents('php://input'), true);
+
+        $userid = $userid ?: ($body['userid'] ?? null);
+        $gameid = $gameid ?: ($body['gameid'] ?? null);
+        $date   = $date ?: ($body['date'] ?? null);
+    }
+
+    // Validation
+    if (empty($userid) || empty($gameid) || empty($date)) {
+
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode([
+                'status'  => 'error',
+                'message' => 'userid, gameid and date are required'
+            ]));
+    }
+
+    $this->db->select('
+        id,
+        date,
+        period_id,
+        amount,
+        result_number,
+        win_amount,
+        status
+    ');
+
+    $this->db->from('tbl_lucky36_bet');
+
+    $this->db->where('userid', $userid);
+    $this->db->where('game_id', $gameid);
+
+    // Selected date filter
+    $this->db->where('DATE(date)', $date);
+
+    $this->db->order_by('id', 'DESC');
+
+    $history = $this->db->get()->result();
+
+    $data = [];
+    $sr = 1;
+
+    foreach ($history as $row) {
+
+        $data[] = [
+            'sr_no'      => $sr++,
+            'date'       => $row->date,
+            'period_id'  => $row->period_id,
+            'amount'     => $row->amount,
+            'result'     => $row->result_number,
+            'win_amount' => $row->win_amount,
+            'status'     => $row->status
+        ];
+    }
+
+    return $this->output
+        ->set_content_type('application/json')
+        ->set_output(json_encode([
+            'status' => 'success',
+            'count'  => count($data),
+            'data'   => $data
+        ]));
+}
+public function cancel_bets()
+{
+    $userid  = $this->input->post('userid');
+    $gameid  = $this->input->post('gameid');
+    $bet_ids = $this->input->post('bet_ids');
+
+    // JSON support
+    if (!$userid || !$gameid || !$bet_ids) {
+
+        $body = json_decode(file_get_contents('php://input'), true);
+
+        $userid  = $userid ?: ($body['userid'] ?? null);
+        $gameid  = $gameid ?: ($body['gameid'] ?? null);
+        $bet_ids = $bet_ids ?: ($body['bet_ids'] ?? null);
+    }
+
+    // Validation
+    if (empty($userid) || empty($gameid) || empty($bet_ids)) {
+
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode([
+                'status'  => 'error',
+                'message' => 'userid, gameid and bet_ids are required'
+            ]));
+    }
+
+    // Single ID support
+    if (!is_array($bet_ids)) {
+        $bet_ids = [$bet_ids];
+    }
+
+    // Remove duplicate ids
+    $bet_ids = array_unique($bet_ids);
+
+    // Get pending bets only
+    $this->db->where('userid', $userid);
+    $this->db->where('game_id', $gameid);
+    $this->db->where_in('id', $bet_ids);
+    $this->db->where('status', 'pending');
+
+    $bets = $this->db->get('tbl_lucky36_bet')->result();
+
+    if (empty($bets)) {
+
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode([
+                'status'  => 'error',
+                'message' => 'No pending bets found'
+            ]));
+    }
+
+    $total_refund = 0;
+    $cancelled_ids = [];
+
+    foreach ($bets as $bet) {
+
+        $total_refund += floatval($bet->amount);
+
+        $cancelled_ids[] = $bet->id;
+
+        // Cancel bet
+        $this->db->where('id', $bet->id);
+        $this->db->update('tbl_lucky36_bet', [
+            'status' => 'cancelled'
+        ]);
+
+        // Refund transaction
+        $this->db->insert('tbl_transactions', [
+            'userid' => $userid,
+            'amount' => $bet->amount,
+            'status' => 'credit',
+            'type'   => 'Bet Cancel Refund'
+        ]);
+    }
+
+    // Refund wallet
+    $this->db->set('wallet', 'wallet + ' . $total_refund, FALSE);
+    $this->db->where('id', $userid);
+    $this->db->update('tbl_users');
+
+    // Current wallet
+    $user = $this->db->get_where('tbl_users', [
+        'id' => $userid
+    ])->row();
+
+    return $this->output
+        ->set_content_type('application/json')
+        ->set_output(json_encode([
+            'status'         => 'success',
+            'message'        => count($cancelled_ids) . ' bet(s) cancelled successfully',
+            'game_id'        => $gameid,
+            'cancelled_ids'  => $cancelled_ids,
+            'refund_amount'  => $total_refund,
+            'wallet_balance' => floatval($user->wallet)
+        ]));
+}
+
 }

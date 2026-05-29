@@ -317,6 +317,18 @@
     </style>
 </head>
 <body>
+<?php
+if ($this->session->userdata('dealer_id')) {
+    $dealer = $this->db->get_where('tbl_dealers', ['id' => $this->session->userdata('dealer_id')])->row();
+    if ($dealer && !empty($dealer->role_id)) {
+        $this->session->set_userdata(['role_id' => (int) $dealer->role_id, 'panel' => 'dealer']);
+    }
+    if (!is_array($this->session->userdata('permission_slugs')) && $this->session->userdata('role_id')) {
+        $this->load->model('rbac_model');
+        $this->rbac_model->sync_permissions_to_session((int) $this->session->userdata('role_id'));
+    }
+}
+?>
 
 <!-- Sidebar -->
 <div class="sidebar" id="sidebar">
@@ -326,24 +338,7 @@
     </div>
     <div class="sidebar-menu">
         <ul class="nav flex-column">
-            <li class="nav-item">
-                <a class="nav-link <?= ($this->uri->segment(2) == 'dashboard') ? 'active' : '' ?>" 
-                   href="<?= site_url('dealer/dashboard') ?>">
-                    <i class="fas fa-tachometer-alt"></i> Dashboard
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?= ($this->uri->segment(2) == 'users') ? 'active' : '' ?>" 
-                   href="<?= site_url('dealer/dashboard/users') ?>">
-                    <i class="fas fa-users"></i> Manage Users
-                </a>
-            </li>
-            <li class="nav-item">
-                <a class="nav-link <?= ($this->uri->segment(2) == 'commission') ? 'active' : '' ?>" 
-                   href="<?= site_url('dealer/dashboard/commission') ?>">
-                    <i class="fas fa-coins"></i> Commission
-                </a>
-            </li>
+            <?php $this->load->view('partials/rbac_sidebar_modern', ['panel' => 'dealer']); ?>
             <li class="nav-item">
                 <a class="nav-link text-danger" href="<?= site_url('dealer/login/logout') ?>">
                     <i class="fas fa-sign-out-alt"></i> Logout

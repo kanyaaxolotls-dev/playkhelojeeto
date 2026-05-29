@@ -86,9 +86,11 @@
         <div>
             <i class="fas fa-users"></i> My Users
         </div>
+        <?php if (rbac_has('create_user')) { ?>
         <a href="<?= site_url('dealer/dashboard/create_user') ?>" class="btn btn-primary btn-sm" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none;">
             <i class="fas fa-plus"></i> Add User
         </a>
+        <?php } ?>
     </div>
     <div class="card-body p-0">
         <div class="table-responsive">
@@ -121,9 +123,11 @@
                                 <?php endif; ?>
                             </td>
                             <td>
+                                <?php if (rbac_has('wallet_credit') || rbac_has('wallet_debit')) { ?>
                                 <button class="btn btn-sm btn-success me-1" onclick="updateWallet(<?= $user->id ?>, <?= $user->wallet ?>)" title="Update Wallet" style="background: #28a745; border: none;">
                                     <i class="fas fa-money-bill"></i>
                                 </button>
+                                <?php } ?>
                                 <a href="<?= site_url('dealer/dashboard/view_user/'.$user->id) ?>" class="btn btn-sm btn-info" title="View Details" style="background: #17a2b8; border: none;">
                                     <i class="fas fa-eye"></i>
                                 </a>

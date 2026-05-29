@@ -1,13 +1,10 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class Dashboard extends CI_Controller {
+class Dashboard extends Distributor_Controller {
 
     public function __construct() {
         parent::__construct();
-        if (!$this->session->distributor_id) {
-            redirect(site_url('distributor_login'));
-        }
         $this->load->model('Hierarchy_model');
         $this->load->model('db_model');
     }
@@ -87,6 +84,7 @@ public function index() {
 
     public function create_dealer() {
         if ($this->input->post('name')) {
+            rbac_require('create_dealer');
             $distributor_id = $this->session->distributor_id;
             
             $data = array(
@@ -118,9 +116,14 @@ public function index() {
     }
 
     public function update_dealer_wallet() {
+        $transaction_type = $this->input->post('transaction_type');
+        if ($transaction_type === 'debit') {
+            rbac_require('wallet_debit');
+        } else {
+            rbac_require('wallet_credit');
+        }
         $dealer_id = $this->input->post('dealer_id');
         $amount = $this->input->post('amount');
-        $transaction_type = $this->input->post('transaction_type');
         $distributor_id = $this->session->distributor_id;
         
         // Verify dealer belongs to this distributor
@@ -179,6 +182,7 @@ public function index() {
 
 
 public function commission() {
+    rbac_require('view_transaction_history');
     $distributor_id = $this->session->userdata('distributor_id');
     
     // Get commission data
@@ -203,6 +207,7 @@ public function commission() {
     }*/
 
     public function reports() {
+        rbac_require('view_reports');
         $distributor_id = $this->session->distributor_id;
         
         $from_date = $this->input->get('from_date');
@@ -218,6 +223,7 @@ public function commission() {
         $this->load->view('distributor/footer');
     }
     public function delete_dealer($dealer_id) {
+    rbac_require('delete_user');
     $distributor_id = $this->session->userdata('distributor_id');
     
     // Verify dealer belongs to this distributor

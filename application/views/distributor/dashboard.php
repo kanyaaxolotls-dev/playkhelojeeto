@@ -96,9 +96,11 @@
 <div class="card">
     <div class="card-header">
         <h5><i class="fa fa-list"></i> Recent Dealers</h5>
+        <?php if (rbac_has('create_dealer')) { ?>
         <a href="<?= site_url('distributor/dashboard/create_dealer') ?>" class="btn btn-sm btn-primary float-right">
             <i class="fa fa-plus"></i> Add New Dealer
         </a>
+        <?php } ?>
     </div>
     <div class="card-body table-responsive">
         <table class="table table-hover">

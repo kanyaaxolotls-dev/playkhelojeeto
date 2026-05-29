@@ -1,9 +1,11 @@
 <div class="card">
     <div class="card-header">
         My Users
+        <?php if (rbac_has('create_user')) { ?>
         <a href="<?= site_url('dealer/dashboard/create_user') ?>" class="btn btn-sm btn-primary float-end">
             <i class="fas fa-plus"></i> Add User
         </a>
+        <?php } ?>
     </div>
     <div class="card-body table-responsive">
         <table class="table table-bordered datatable">
@@ -24,9 +26,11 @@
                     <td><?= $user->status == 1 ? '<span class="badge bg-success">Active</span>' : '<span class="badge bg-danger">Inactive</span>' ?></td>
                     <td><?= date('d-m-Y', strtotime($user->date)) ?></td>
                     <td>
+                        <?php if (rbac_has('wallet_credit') || rbac_has('wallet_debit')) { ?>
                         <button class="btn btn-sm btn-success" onclick="updateWallet(<?= $user->id ?>, <?= $user->wallet ?>)">
                             <i class="fas fa-money-bill"></i> Wallet
                         </button>
+                        <?php } ?>
                         <a href="<?= site_url('dealer/dashboard/view_user/'.$user->id) ?>" class="btn btn-sm btn-info">
                             <i class="fas fa-eye"></i>
                         </a>

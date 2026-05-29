@@ -20,6 +20,8 @@ class Dealers extends CI_Controller {
 
     public function create() {
         if ($this->input->post('name')) {
+            $this->load->helper('rbac');
+            rbac_require('create_dealer');
             $name = trim($this->input->post('name'));
             $phone = trim($this->input->post('phone'));
             $password = trim($this->input->post('password'));
@@ -30,6 +32,11 @@ class Dealers extends CI_Controller {
                 if ($this->db_model->count_all('tbl_dealers', ['phone' => $phone]) > 0) {
                     $this->session->set_flashdata('site_flash', '<div class="alert alert-danger">Dealer phone already exists.</div>');
                 } else {
+                    $role_id = (int) $this->input->post('role_id');
+                    if ($role_id <= 0) {
+                        $this->load->model('rbac_model');
+                        $role_id = $this->rbac_model->default_role_id_for_panel('dealer');
+                    }
                     $this->db->insert('tbl_dealers', [
                         'name' => $name,
                         'phone' => $phone,
@@ -37,6 +44,7 @@ class Dealers extends CI_Controller {
                         'wallet' => 0,
                         'commission_rate' => $commission_rate ?: 2.0,
                         'status' => 1,
+                        'role_id' => $role_id,
                         'distributor_id' => $distributor_id,
                         'created_at' => date('Y-m-d H:i:s'),
                     ]);
@@ -49,6 +57,8 @@ class Dealers extends CI_Controller {
         }
 
         $data['distributors'] = $this->Hierarchy_model->get_all_distributors();
+        $this->load->model('rbac_model');
+        $data['dealer_roles'] = $this->rbac_model->get_roles_by_panel('dealer');
         $data['title'] = 'Create Dealer';
         $this->load->view('admin/dealers/create', $data);
     }

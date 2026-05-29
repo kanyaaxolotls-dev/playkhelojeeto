@@ -82,17 +82,14 @@
             <input type="password" class="form-control" id="full-cpass" required name="cpass" placeholder="Confirm Password">
         </div>
         <div class="form-group">
-            <label for="name">Select Role</label>
-            <select class="form-control" name="role" required>
+            <label for="role_id">Select Admin Role</label>
+            <select class="form-control" name="role_id" required>
                 <option value="" selected disabled>Select Role</option>
-                <?php 
-                  $this->db->select('*')->from('tbl_roles')->where('status', 1);
-                  $query = $this->db->get()->result_array();
-                  foreach($query as $optn){
-                ?>
-                <option value="<?php echo $optn['name'] ?>"><?php echo $optn['name'] ?> </option>
+                <?php foreach ($role_options as $optn) { ?>
+                <option value="<?= (int)$optn->id ?>"><?= html_escape($optn->name) ?></option>
                 <?php } ?>
             </select>
+            <small class="text-muted">Only Admin panel roles. Create Distributor/Dealer roles under Manage Roles.</small>
         </div>
     </div>
     <div class="modal-footer">
